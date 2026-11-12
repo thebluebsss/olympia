@@ -1,0 +1,6 @@
+{
+  "name": "Đường Lên Đỉnh Olympia — Đấu Trường Tri Thức",
+  "description": "Đấu trường trực tuyến Đường Lên Đỉnh Olympia 4 Nhà Leo Núi thời gian thực tích hợp hệ thống Backend xử lý, chuyển đổi và quản lý ngân hàng hơn 21.600 câu hỏi từ file CSV dung lượng lớn.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
