@@ -7,10 +7,7 @@ import {
   VE_DICH_30_QUESTIONS,
   TIE_BREAKER_QUESTIONS,
 } from '../../data/olympiaQuestions.ts';
-import {
-  OBSTACLE_REAL_PHOTOS,
-  resolveObstacleImageUrl,
-} from '../obstacleIllustrations.ts';
+import { resolveObstacleImageUrl } from '../obstacleIllustrations.ts';
 import { HISTORICAL_VCNV_SUPPLEMENTS } from '../../data/vcnvHistoricalSupplements.ts';
 import type {
   QuizQuestion,
@@ -26,13 +23,77 @@ import {
 } from './csvParser.ts';
 
 /**
- * Reconstructs playable Round 2 ObstaclePuzzle sets from `r.round === 'VCNV'` records in the backend bank,
- * prioritizing upgraded indirect-clue puzzles so the mystery image and horizontal rows are never too easy to guess.
+ * Counts exact non-whitespace characters for an Olympia horizontal row or obstacle keyword.
  */
-export function buildObstaclePuzzlesFromBank(
-  vcnvRecords: BankQuestionRecord[],
-  specificMatch?: string
-): ObstaclePuzzle[] {
+export function countObstacleLetters(word: string): number {
+  const primary = (word || '').split('/')[0].trim();
+  return primary.replace(/\s+/g, '').length;
+}
+
+/**
+ * Ensures any "(X chữ cái)" or "gồm X chữ cái" prefix in a VCNV question or explanation
+ * matches the exact non-whitespace character count of its answer.
+ */
+export function syncQuestionTextWithExactCharCount(
+  text: string,
+  exactCount: number
+): string {
+  if (!text || exactCount <= 0) return text;
+  let updated = text;
+  // Match "Hàng ngang số 1 (7 chữ cái):" or "Câu hỏi Ô Trung Tâm (8 chữ cái):"
+  updated = updated.replace(
+    /^((?:Hàng ngang số\s*\d+|Câu hỏi Ô Trung Tâm)\s*\()\d+(\s*(?:chữ cái|chữ|ký tự)\)\s*:)/i,
+    `$1${exactCount}$2`
+  );
+  // Match "[Chủ đề: ... · Chướng ngại vật gồm 10 chữ cái]"
+  updated = updated.replace(
+    /(Chướng ngại vật gồm\s+)\d+(\s+(?:chữ cái|chữ|ký tự))/gi,
+    `$1${exactCount}$2`
+  );
+  return updated;
+}
+
+export interface EditableVcnvRowRecord {
+  id: 1 | 2 | 3 | 4;
+  qid: string;
+  rowLabel: string;
+  charCount: number;
+  question: string;
+  displayWord: string;
+  acceptedAnswers: string[];
+  explanation: string;
+}
+
+export interface EditableVcnvPuzzleRecord {
+  puzzleId: string;
+  season: string;
+  match: string;
+  cnvQid: string;
+  centerQid: string;
+  title: string;
+  keywordDisplay: string;
+  charCount: number;
+  acceptedKeywords: string[];
+  imageUrl: string;
+  rawImageUrl: string;
+  summaryExplanation: string;
+  rows: EditableVcnvRowRecord[];
+  centerQuestion: {
+    qid: string;
+    charCount: number;
+    question: string;
+    displayWord: string;
+    acceptedAnswers: string[];
+    explanation: string;
+  };
+}
+
+/**
+ * Builds structured VCNV puzzle records with full QIDs and resolved images for the Question Bank VCNV Lookup & Editor.
+ */
+export function buildEditableVcnvPuzzlesFromBank(
+  vcnvRecords: BankQuestionRecord[]
+): EditableVcnvPuzzleRecord[] {
   const byMatchKey = new Map<string, BankQuestionRecord[]>();
   for (const rec of vcnvRecords) {
     const key = `${rec.season}:::${rec.match}`;
@@ -42,23 +103,18 @@ export function buildObstaclePuzzlesFromBank(
     byMatchKey.get(key)!.push(rec);
   }
 
-  const builtPuzzles: ObstaclePuzzle[] = [];
+  const results: EditableVcnvPuzzleRecord[] = [];
 
   for (const [key, group] of byMatchKey.entries()) {
     const [season, match] = key.split(':::');
-    if (specificMatch && match !== specificMatch) continue;
-
-    // If this is one of the 16 upgraded VCNV sets (VCNV01..VCNV16), use the upgraded indirect-clue puzzle directly
     const vcnvNumMatch = match.match(/^VCNV0*(\d+)$/i);
-    if (vcnvNumMatch) {
-      const idx = parseInt(vcnvNumMatch[1], 10) - 1;
-      if (idx >= 0 && idx < OBSTACLE_PUZZLES.length) {
-        builtPuzzles.push(OBSTACLE_PUZZLES[idx]);
-        continue;
-      }
-    } else if (!specificMatch && !HISTORICAL_VCNV_SUPPLEMENTS[`${season}-${match}`]) {
-      // In random mode, include all 60 VCNV01..60 sets plus all 102 authentic curated historical Olympia sets (162 distinct VCNV puzzles total)
-      continue;
+    if (!vcnvNumMatch && !HISTORICAL_VCNV_SUPPLEMENTS[`${season}-${match}`]) {
+      const hasExplicitCnv = group.some(
+        (r) =>
+          r.subCode.toUpperCase() === 'CNV' ||
+          r.subCode.toUpperCase() === 'KEYWORD'
+      );
+      if (!hasExplicitCnv) continue;
     }
 
     const cnvRec = group.find(
@@ -77,129 +133,156 @@ export function buildObstaclePuzzlesFromBank(
         r.subCode.toUpperCase() === 'CENTER'
     );
 
-    if (cnvRec && row1 && row2 && row3 && row4) {
-      const puzzleId = vcnvNumMatch
-        ? `vcnv-${vcnvNumMatch[1]}`
-        : `vcnv-${season}-${match}`;
+    if (!cnvRec || !row1 || !row2 || !row3 || !row4) continue;
 
-      const primaryKeyword = cnvRec.officialAnswer
-        .split('/')[0]
-        .trim()
-        .toUpperCase();
-      const charCount = primaryKeyword.replace(/\s+/g, '').length;
+    const puzzleId = vcnvNumMatch
+      ? `vcnv-${vcnvNumMatch[1]}`
+      : `vcnv-${season}-${match}`;
 
-      const themeMatch = cnvRec.question.match(/\[Chủ đề:\s*([^·\]]+)/i);
-      const title = themeMatch
-        ? themeMatch[1].trim()
-        : `${cnvRec.categoryVi} (O${season} · ${match})`;
+    const primaryKeyword = cnvRec.officialAnswer
+      .split('/')[0]
+      .trim()
+      .toUpperCase();
+    const charCount = countObstacleLetters(primaryKeyword);
 
-      const toObstacleRow = (
-        r: BankQuestionRecord,
-        id: 1 | 2 | 3 | 4
-      ): ObstacleRow => {
-        const disp = r.officialAnswer.split('/')[0].trim().toUpperCase();
-        return {
-          id,
-          rowLabel: `Hàng ngang số ${id}`,
-          charCount: disp.replace(/\s+/g, '').length,
+    const themeMatch = cnvRec.question.match(/\[Chủ đề:\s*([^·\]]+)/i);
+    const title = themeMatch
+      ? themeMatch[1].trim()
+      : cnvRec.categoryVi && cnvRec.categoryVi !== 'Hiểu biết chung'
+      ? cnvRec.categoryVi
+      : `Vượt Chướng Ngại Vật (O${season} · ${match})`;
+
+    const toEditableRow = (
+      r: BankQuestionRecord,
+      id: 1 | 2 | 3 | 4
+    ): EditableVcnvRowRecord => {
+      const disp = r.officialAnswer.split('/')[0].trim().toUpperCase();
+      const rowChars = countObstacleLetters(disp);
+      return {
+        id,
+        qid: r.qid,
+        rowLabel: `Hàng ngang số ${id}`,
+        charCount: rowChars,
+        question: syncQuestionTextWithExactCharCount(r.question, rowChars),
+        displayWord: disp,
+        acceptedAnswers: r.acceptedAnswers,
+        explanation: r.explanation,
+      };
+    };
+
+    const rows: EditableVcnvRowRecord[] = [
+      toEditableRow(row1, 1),
+      toEditableRow(row2, 2),
+      toEditableRow(row3, 3),
+      toEditableRow(row4, 4),
+    ];
+
+    const centerDisp = row5
+      ? row5.officialAnswer.split('/')[0].trim().toUpperCase()
+      : primaryKeyword;
+    const centerCharCount = countObstacleLetters(centerDisp);
+    const centerQid = row5 ? row5.qid : `${season}-${match}-VCNV-5`;
+
+    const resolvedImg = resolveObstacleImageUrl(
+      puzzleId,
+      cnvRec.imageUrl,
+      primaryKeyword,
+      title,
+      rows.map((r) => r.displayWord),
+      centerDisp,
+      cnvRec.explanation,
+      rows.map((r) => r.question)
+    );
+
+    results.push({
+      puzzleId,
+      season,
+      match,
+      cnvQid: cnvRec.qid,
+      centerQid,
+      title,
+      keywordDisplay: primaryKeyword,
+      charCount,
+      acceptedKeywords: cnvRec.acceptedAnswers,
+      imageUrl: resolvedImg,
+      rawImageUrl: cnvRec.imageUrl || resolvedImg,
+      summaryExplanation: cnvRec.explanation,
+      rows,
+      centerQuestion: {
+        qid: centerQid,
+        charCount: centerCharCount,
+        question: row5
+          ? syncQuestionTextWithExactCharCount(row5.question, centerCharCount)
+          : `Câu hỏi Ô Trung Tâm (${centerCharCount} chữ cái): Từ khóa chính liên quan đến 4 hàng ngang trong chủ đề "${title}" là gì?`,
+        displayWord: centerDisp,
+        acceptedAnswers: row5 ? row5.acceptedAnswers : cnvRec.acceptedAnswers,
+        explanation: row5 ? row5.explanation : cnvRec.explanation,
+      },
+    });
+  }
+
+  // Sort: VCNV01..VCNV60 first in numeric order, then by season descending and match
+  results.sort((a, b) => {
+    const aVcnv = a.match.match(/^VCNV0*(\d+)$/i);
+    const bVcnv = b.match.match(/^VCNV0*(\d+)$/i);
+    if (aVcnv && bVcnv) {
+      return parseInt(aVcnv[1], 10) - parseInt(bVcnv[1], 10);
+    }
+    if (aVcnv) return -1;
+    if (bVcnv) return 1;
+    const sDiff = (parseInt(b.season, 10) || 0) - (parseInt(a.season, 10) || 0);
+    if (sDiff !== 0) return sDiff;
+    return a.match.localeCompare(b.match, undefined, { numeric: true });
+  });
+
+  return results;
+}
+
+/**
+ * Reconstructs playable Round 2 ObstaclePuzzle sets from `r.round === 'VCNV'` records in the backend bank.
+ * Respects any edits made to rows, answers, or images in the Question Bank.
+ */
+export function buildObstaclePuzzlesFromBank(
+  vcnvRecords: BankQuestionRecord[],
+  specificMatch?: string
+): ObstaclePuzzle[] {
+  const editableList = buildEditableVcnvPuzzlesFromBank(vcnvRecords);
+  const builtPuzzles: ObstaclePuzzle[] = [];
+  const seenKeywords = new Set<string>();
+
+  for (const item of editableList) {
+    if (specificMatch && item.match !== specificMatch) continue;
+    if (!specificMatch && seenKeywords.has(item.keywordDisplay)) {
+      continue;
+    }
+    seenKeywords.add(item.keywordDisplay);
+
+    builtPuzzles.push({
+      id: item.puzzleId,
+      title: item.title,
+      keywordDisplay: item.keywordDisplay,
+      charCount: item.charCount,
+      acceptedKeywords: item.acceptedKeywords,
+      imageUrl: item.imageUrl,
+      rows: item.rows.map(
+        (r): ObstacleRow => ({
+          id: r.id,
+          rowLabel: r.rowLabel,
+          charCount: r.charCount,
           question: r.question,
-          displayWord: disp,
+          displayWord: r.displayWord,
           acceptedAnswers: r.acceptedAnswers,
           explanation: r.explanation,
-        };
-      };
-
-      const centerDisp = row5
-        ? row5.officialAnswer.split('/')[0].trim().toUpperCase()
-        : primaryKeyword;
-
-      const rowWords = [row1, row2, row3, row4].map((r) =>
-        r.officialAnswer.split('/')[0].trim().toUpperCase()
-      );
-
-      const indirectPhoto = resolveObstacleImageUrl(
-        puzzleId,
-        cnvRec.imageUrl,
-        primaryKeyword,
-        title,
-        rowWords,
-        centerDisp,
-        cnvRec.explanation
-      );
-
-      builtPuzzles.push({
-        id: puzzleId,
-        title,
-        keywordDisplay: primaryKeyword,
-        charCount,
-        acceptedKeywords: cnvRec.acceptedAnswers,
-        imageUrl: indirectPhoto,
-        rows: [
-          toObstacleRow(row1, 1),
-          toObstacleRow(row2, 2),
-          toObstacleRow(row3, 3),
-          toObstacleRow(row4, 4),
-        ],
-        centerQuestion: row5
-          ? {
-              question: row5.question,
-              displayWord: centerDisp,
-              acceptedAnswers: row5.acceptedAnswers,
-              explanation: row5.explanation,
-            }
-          : {
-              question: `Câu hỏi Ô Trung Tâm: Từ khóa chính liên quan đến 4 hàng ngang trong chủ đề "${title}" là gì?`,
-              displayWord: primaryKeyword,
-              acceptedAnswers: cnvRec.acceptedAnswers,
-              explanation: cnvRec.explanation,
-            },
-        summaryExplanation: cnvRec.explanation,
-      });
-    } else if (specificMatch && group.length >= 3) {
-      const sortedRows = [...group].sort((a, b) =>
-        a.subCode.localeCompare(b.subCode)
-      );
-      const fallbackBase =
-        OBSTACLE_PUZZLES[
-          Math.abs(match.charCodeAt(0) + Number(season || 26)) %
-            OBSTACLE_PUZZLES.length
-        ];
-      const rows: ObstacleRow[] = ([1, 2, 3, 4] as const).map((id, idx) => {
-        const r = sortedRows[idx];
-        if (r) {
-          const disp = r.officialAnswer.split('/')[0].trim().toUpperCase();
-          return {
-            id,
-            rowLabel: `Hàng ngang số ${id}`,
-            charCount: disp.replace(/\s+/g, '').length,
-            question: r.question,
-            displayWord: disp,
-            acceptedAnswers: r.acceptedAnswers,
-            explanation: r.explanation,
-          };
-        }
-        return fallbackBase.rows[idx];
-      });
-
-      const fifth = sortedRows[4];
-      builtPuzzles.push({
-        ...fallbackBase,
-        id: `vcnv-${season}-${match}`,
-        title: `Vượt Chướng Ngại Vật (Olympia Mùa ${season} · Trận ${match})`,
-        rows,
-        centerQuestion: fifth
-          ? {
-              question: fifth.question,
-              displayWord: fifth.officialAnswer
-                .split('/')[0]
-                .trim()
-                .toUpperCase(),
-              acceptedAnswers: fifth.acceptedAnswers,
-              explanation: fifth.explanation,
-            }
-          : fallbackBase.centerQuestion,
-      });
-    }
+        })
+      ),
+      centerQuestion: {
+        question: item.centerQuestion.question,
+        displayWord: item.centerQuestion.displayWord,
+        acceptedAnswers: item.centerQuestion.acceptedAnswers,
+        explanation: item.centerQuestion.explanation,
+      },
+      summaryExplanation: item.summaryExplanation,
+    });
   }
 
   return builtPuzzles.length > 0 ? builtPuzzles : [...OBSTACLE_PUZZLES];
@@ -240,10 +323,8 @@ export function buildTangTocQuestionsFromBank(
     };
   };
 
-  // Filter out overly short/easy CSV TT questions unless a specific match was requested
   const isChallengingTtRecord = (rec: BankQuestionRecord): boolean => {
     if (specificMatch && rec.match === specificMatch) return true;
-    // Skip legacy TT01..TT10 rows from old CSV if they haven't been replaced yet
     if (/^TT0[1-9]|^TT10$/i.test(rec.match)) return false;
     return rec.question.length >= 95;
   };
@@ -259,7 +340,6 @@ export function buildTangTocQuestionsFromBank(
     if (specificMatch && fromCsv.length > 0) {
       return [...fromCsv, ...curatedHighDiff];
     }
-    // Prioritize our 40 high-difficulty hint-free TANG_TOC_QUESTIONS + challenging CSV TT records
     return [...curatedHighDiff, ...fromCsv.slice(0, 10)];
   };
 

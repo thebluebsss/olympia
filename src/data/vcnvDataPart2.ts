@@ -54,7 +54,7 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
     ],
     centerQuestion: {
       question:
-        'Câu hỏi Ô Trung Tâm (7 chữ cái): Trong phản ứng quang phân li nước (2H₂O → 4H⁺ + 4e⁻ + O₂) ở pha sáng, toàn bộ lượng khí Oxy tự do giải phóng ra bầu khí quyển Trái Đất có nguồn gốc từ các nguyên tử Oxy của phân tử nào?',
+        'Câu hỏi Ô Trung Tâm (10 chữ cái): Trong phản ứng quang phân li nước (2H₂O → 4H⁺ + 4e⁻ + O₂) ở pha sáng, toàn bộ lượng khí Oxy tự do giải phóng ra bầu khí quyển Trái Đất có nguồn gốc từ các nguyên tử Oxy của phân tử nào?',
       displayWord: 'PHÂN TỬ NƯỚC',
       acceptedAnswers: ['Phan tu nuoc', 'Nuoc', 'H2O'],
       explanation: 'Thí nghiệm đánh dấu đồng vị O¹⁸ của Ruben và Kamen chứng minh 100% O₂ giải phóng có nguồn gốc từ H₂O chứ không phải từ CO₂.',
@@ -73,9 +73,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 1,
         rowLabel: 'Hàng ngang số 1',
-        charCount: 8,
+        charCount: 9,
         question:
-          'Hàng ngang số 1 (8 chữ cái): Vị chúa Nguyễn đầu tiên được xưng là "Vũ Vương" (Nguyễn Phúc ...), người vào năm Giáp Tý 1744 tại Phú Xuân đã ban hành sắc dụ cải cách triều phục và thường phục xứ Đàng Trong, định hình kiểu áo cài khuy bên phải?',
+          'Hàng ngang số 1 (9 chữ cái): Vị chúa Nguyễn đầu tiên được xưng là "Vũ Vương" (Nguyễn Phúc ...), người vào năm Giáp Tý 1744 tại Phú Xuân đã ban hành sắc dụ cải cách triều phục và thường phục xứ Đàng Trong, định hình kiểu áo cài khuy bên phải?',
         displayWord: 'PHÚC KHOÁT',
         acceptedAnswers: ['Phuc Khoat', 'Nguyen Phuc Khoat', 'Vo Vuong'],
         explanation: 'Chúa Võ Vương Nguyễn Phúc Khoát được lịch sử ghi nhận là người khai sinh kiểu áo ngũ thân truyền thống từ năm 1744.',
@@ -83,9 +83,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 2,
         rowLabel: 'Hàng ngang số 2',
-        charCount: 7,
+        charCount: 8,
         question:
-          'Hàng ngang số 2 (7 chữ cái): Họa sĩ tốt nghiệp Trường Cao đẳng Mỹ thuật Đông Dương (Nguyễn ...), người vào năm 1934 trên báo Phong Hóa đã khởi xướng cuộc cách tân kiểu áo "Lemur" chỉ còn hai vạt trước – sau ôm tôn dáng?',
+          'Hàng ngang số 2 (8 chữ cái): Họa sĩ tốt nghiệp Trường Cao đẳng Mỹ thuật Đông Dương (Nguyễn ...), người vào năm 1934 trên báo Phong Hóa đã khởi xướng cuộc cách tân kiểu áo "Lemur" chỉ còn hai vạt trước – sau ôm tôn dáng?',
         displayWord: 'CÁT TƯỜNG',
         acceptedAnswers: ['Cat Tuong', 'Nguyen Cat Tuong', 'Lemur'],
         explanation: 'Họa sĩ Nguyễn Cát Tường (bút danh Lemur) đã cách tân trang phục truyền thống theo hướng hiện đại và thanh lịch.',
@@ -103,9 +103,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 4,
         rowLabel: 'Hàng ngang số 4',
-        charCount: 6,
+        charCount: 7,
         question:
-          'Hàng ngang số 4 (6 chữ cái): Ngôi làng dệt lụa cổ truyền ngàn năm nằm bên bờ sông Nhuệ (thuộc quận Hà Đông, Hà Nội), nổi tiếng với những tấm lụa tơ tằm mềm mại óng ả ("Lụa ...")?',
+          'Hàng ngang số 4 (7 chữ cái): Ngôi làng dệt lụa cổ truyền ngàn năm nằm bên bờ sông Nhuệ (thuộc quận Hà Đông, Hà Nội), nổi tiếng với những tấm lụa tơ tằm mềm mại óng ả ("Lụa ...")?',
         displayWord: 'VẠN PHÚC',
         acceptedAnswers: ['Van Phuc', 'Lua Van Phuc', 'Lua Ha Dong'],
         explanation: 'Lụa Vạn Phúc (Hà Đông) là chất liệu thượng hạng gắn liền với vẻ đẹp thướt tha của trang phục truyền thống Việt.',
@@ -113,7 +113,7 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
     ],
     centerQuestion: {
       question:
-        'Câu hỏi Ô Trung Tâm (9 chữ cái): Trong ca khúc "Một thoáng quê hương" của hai nhạc sĩ Từ Huy và Thanh Tùng, hình ảnh trang phục này được tôn vinh qua câu hát: "Đẹp biết bao quê hương cho ta chiếc áo nhiệm màu / Dù ở đâu Paris, Luân Đôn hay ở những miền xa / Thoáng thấy ... bay trên đường phố / Sẽ thấy tâm hồn quê hương ở đó, em ơi"?',
+        'Câu hỏi Ô Trung Tâm (8 chữ cái): Trong ca khúc "Một thoáng quê hương" của hai nhạc sĩ Từ Huy và Thanh Tùng, hình ảnh trang phục này được tôn vinh qua câu hát: "Đẹp biết bao quê hương cho ta chiếc áo nhiệm màu / Dù ở đâu Paris, Luân Đôn hay ở những miền xa / Thoáng thấy ... bay trên đường phố / Sẽ thấy tâm hồn quê hương ở đó, em ơi"?',
       displayWord: 'ÁO DÀI BAY',
       acceptedAnswers: ['Ao dai bay', 'Ao dai', 'Ta ao dai'],
       explanation: 'Hình ảnh tà áo bay trên đường phố đã trở thành biểu tượng văn hóa nhận diện người Việt trên khắp năm châu.',
@@ -132,9 +132,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 1,
         rowLabel: 'Hàng ngang số 1',
-        charCount: 8,
+        charCount: 9,
         question:
-          'Hàng ngang số 1 (8 chữ cái): Hiện tượng cơ học thiên thể (Khóa ...) giải thích vì sao chu kỳ tự quay quanh trục của thiên thể này bằng đúng chu kỳ nó quay quanh Trái Đất (~27,32 ngày), khiến người đứng trên Trái Đất chỉ luôn nhìn thấy một bán cầu duy nhất của nó?',
+          'Hàng ngang số 1 (9 chữ cái): Hiện tượng cơ học thiên thể (Khóa ...) giải thích vì sao chu kỳ tự quay quanh trục của thiên thể này bằng đúng chu kỳ nó quay quanh Trái Đất (~27,32 ngày), khiến người đứng trên Trái Đất chỉ luôn nhìn thấy một bán cầu duy nhất của nó?',
         displayWord: 'THỦY TRIỀU',
         acceptedAnswers: ['Thuy trieu', 'Khoa thuy trieu', 'Dong bo'],
         explanation: 'Hiện tượng "Khóa thủy triều" (Tidal locking) giữ cho thiên thể này luôn hướng một mặt cố định về phía Trái Đất.',
@@ -162,9 +162,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 4,
         rowLabel: 'Hàng ngang số 4',
-        charCount: 7,
+        charCount: 6,
         question:
-          'Hàng ngang số 4 (7 chữ cái): Loại lịch pháp cổ truyền của các cư dân phương Đông được tính toán dựa trên chu kỳ biến đổi pha (Sóc – Thượng huyền – Vọng – Hạ huyền) kéo dài 29,53 ngày giữa hai lần không trăng liên tiếp?',
+          'Hàng ngang số 4 (6 chữ cái): Loại lịch pháp cổ truyền của các cư dân phương Đông được tính toán dựa trên chu kỳ biến đổi pha (Sóc – Thượng huyền – Vọng – Hạ huyền) kéo dài 29,53 ngày giữa hai lần không trăng liên tiếp?',
         displayWord: 'ÂM LỊCH',
         acceptedAnswers: ['Am lich', 'Lich am'],
         explanation: 'Chu kỳ tuần trăng 29,53 ngày (tháng giao hội) là cơ sở tính toán của Âm lịch và Nông lịch.',
@@ -270,9 +270,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 3,
         rowLabel: 'Hàng ngang số 3',
-        charCount: 9,
+        charCount: 6,
         question:
-          'Hàng ngang số 3 (9 chữ cái): Hệ thống các thanh gỗ lim đan chéo chịu lực nâng đỡ toàn bộ phần đài phía trên trụ đá, là tuyệt kỹ kết cấu mộng gỗ không dùng đinh sắt của kiến trúc cổ truyền phương Đông (Hệ ...)?',
+          'Hàng ngang số 3 (6 chữ cái): Hệ thống các thanh gỗ lim đan chéo chịu lực nâng đỡ toàn bộ phần đài phía trên trụ đá, là tuyệt kỹ kết cấu mộng gỗ không dùng đinh sắt của kiến trúc cổ truyền phương Đông (Hệ ...)?',
         displayWord: 'CỦNG ĐỠ',
         acceptedAnswers: ['Cung do', 'Đấu củng', 'Dau cung', 'He cung do'],
         explanation: 'Hệ củng đỡ (đấu củng) gồm 8 thanh gỗ vươn chéo từ trụ đá tạo dáng như những cánh sen nâng đỡ đài Phật.',
@@ -280,9 +280,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 4,
         rowLabel: 'Hàng ngang số 4',
-        charCount: 10,
+        charCount: 6,
         question:
-          'Hàng ngang số 4 (10 chữ cái): Vị kiến trúc sư tài danh người Việt Nam (Nguyễn ...), người đã thiết kế phục dựng lại nguyên trạng công trình di tích này vào tháng 4 năm 1955 ngay sau khi tiếp quản Thủ đô?',
+          'Hàng ngang số 4 (6 chữ cái): Vị kiến trúc sư tài danh người Việt Nam (Nguyễn ...), người đã thiết kế phục dựng lại nguyên trạng công trình di tích này vào tháng 4 năm 1955 ngay sau khi tiếp quản Thủ đô?',
         displayWord: 'BÁ LĂNG',
         acceptedAnswers: ['Ba Lang', 'Nguyen Ba Lang'],
         explanation: 'Kiến trúc sư Nguyễn Bá Lăng là người chủ trì khôi phục công trình theo đúng bản vẽ cổ sau khi bị phá hủy năm 1954.',
@@ -302,7 +302,7 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
     id: 'vcnv-14',
     title: 'Định lý Toán học Cổ điển',
     keywordDisplay: 'ĐỊNH LÝ PYTHAGORAS',
-    charCount: 15,
+    charCount: 16,
     acceptedKeywords: ['Dinh ly Pythagoras', 'Dinh ly Pytago', 'Pythagoras', 'Pytago'],
     imageUrl: OBSTACLE_SVG_ILLUSTRATIONS['vcnv-14'],
     rows: [
@@ -329,9 +329,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 3,
         rowLabel: 'Hàng ngang số 3',
-        charCount: 6,
+        charCount: 4,
         question:
-          'Hàng ngang số 3 (6 chữ cái): Khi áp dụng hệ thức này cho một hình vuông có cạnh bằng 1 đơn vị, độ dài đường chéo bằng √2. Việc phát hiện ra √2 không thể biểu diễn dưới dạng tỷ số hai số nguyên của Hippasus đã khai sinh ra khái niệm số gì trong toán học (Số ...)?',
+          'Hàng ngang số 3 (4 chữ cái): Khi áp dụng hệ thức này cho một hình vuông có cạnh bằng 1 đơn vị, độ dài đường chéo bằng √2. Việc phát hiện ra √2 không thể biểu diễn dưới dạng tỷ số hai số nguyên của Hippasus đã khai sinh ra khái niệm số gì trong toán học (Số ...)?',
         displayWord: 'VÔ TỈ',
         acceptedAnswers: ['Vo ti', 'So vo ti', 'Vo ty'],
         explanation: 'Sự phát hiện độ dài đường chéo hình vuông đơn vị là số vô tỉ (√2) bắt nguồn trực tiếp từ hệ thức này.',
@@ -339,9 +339,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 4,
         rowLabel: 'Hàng ngang số 4',
-        charCount: 9,
+        charCount: 10,
         question:
-          'Hàng ngang số 4 (9 chữ cái): Tên gọi cổ của hệ thức toán học này trong sách toán cổ phương Đông "Chu Bễ Toán Kinh" (thời Chu – Hán), trong đó cạnh góc vuông ngắn gọi là "Câu" (bằng 3), cạnh góc vuông dài gọi là "Cổ" (bằng 4) và cạnh huyền gọi là "Huyền" (bằng 5)?',
+          'Hàng ngang số 4 (10 chữ cái): Tên gọi cổ của hệ thức toán học này trong sách toán cổ phương Đông "Chu Bễ Toán Kinh" (thời Chu – Hán), trong đó cạnh góc vuông ngắn gọi là "Câu" (bằng 3), cạnh góc vuông dài gọi là "Cổ" (bằng 4) và cạnh huyền gọi là "Huyền" (bằng 5)?',
         displayWord: 'CÂU CỔ HUYỀN',
         acceptedAnswers: ['Cau Co Huyen', 'Dinh ly Cau Co', 'Cau Co'],
         explanation: 'Trong toán học cổ phương Đông, hệ thức 3² + 4² = 5² được gọi là quy tắc "Câu – Cổ – Huyền".',
@@ -349,13 +349,13 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
     ],
     centerQuestion: {
       question:
-        'Câu hỏi Ô Trung Tâm (9 chữ cái): Một bộ ba số nguyên dương (a, b, c) thỏa mãn phương trình Đi-ô-phăng a² + b² = c² (chẳng hạn (3, 4, 5), (5, 12, 13), (8, 15, 17)) được gọi là bộ ba số nguyên thủy của định lý này. Hỏi trong mọi bộ ba số như vậy luôn có ít nhất một số chia hết cho mấy (ngoài 2 và 3)?',
+        'Câu hỏi Ô Trung Tâm (11 chữ cái): Một bộ ba số nguyên dương (a, b, c) thỏa mãn phương trình Đi-ô-phăng a² + b² = c² (chẳng hạn (3, 4, 5), (5, 12, 13), (8, 15, 17)) được gọi là bộ ba số nguyên thủy của định lý này. Hỏi trong mọi bộ ba số như vậy luôn có ít nhất một số chia hết cho mấy (ngoài 2 và 3)?',
       displayWord: 'CHIA HẾT CHO 5',
       acceptedAnswers: ['Chia het cho 5', '5', 'So 5'],
       explanation: 'Do tính chất số chính phương theo modulo 5 (chỉ dư 0, 1 hoặc 4), trong mọi bộ ba nguyên (a, b, c) thỏa a² + b² = c² luôn có ít nhất một số chia hết cho 5.',
     },
     summaryExplanation:
-      'Chướng ngại vật là ĐỊNH LÝ PYTHAGORAS / ĐỊNH LÝ PYTAGO (15 chữ cái) — Viên ngọc nền tảng của hình học và lý thuyết số.',
+      'Chướng ngại vật là ĐỊNH LÝ PYTHAGORAS / ĐỊNH LÝ PYTAGO (16 chữ cái) — Viên ngọc nền tảng của hình học và lý thuyết số.',
   },
   {
     id: 'vcnv-15',
@@ -378,9 +378,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 2,
         rowLabel: 'Hàng ngang số 2',
-        charCount: 7,
+        charCount: 9,
         question:
-          'Hàng ngang số 2 (7 chữ cái): Trong mạch điện RLC mắc nối tiếp, khi cảm kháng Z_L bằng dung kháng Z_C (ω²LC = 1), cường độ hiệu dụng trong mạch đạt giá trị cực đại và hệ số công suất cos(φ) = 1. Hiện tượng vật lý đó gọi là gì?',
+          'Hàng ngang số 2 (9 chữ cái): Trong mạch điện RLC mắc nối tiếp, khi cảm kháng Z_L bằng dung kháng Z_C (ω²LC = 1), cường độ hiệu dụng trong mạch đạt giá trị cực đại và hệ số công suất cos(φ) = 1. Hiện tượng vật lý đó gọi là gì?',
         displayWord: 'CỘNG HƯỞNG',
         acceptedAnswers: ['Cong huong', 'Cong huong dien'],
         explanation: 'Hiện tượng cộng hưởng điện chỉ xảy ra trong các mạch có tần số biến thiên khi Z_L = Z_C.',
@@ -398,9 +398,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 4,
         rowLabel: 'Hàng ngang số 4',
-        charCount: 7,
+        charCount: 8,
         question:
-          'Hàng ngang số 4 (7 chữ cái): Giá trị của đại lượng điện (cường độ hoặc điện áp) được xác định bằng giá trị cực đại chia cho căn bậc hai của 2 (I = I₀/√2), tương đương với công suất tỏa nhiệt của dòng không đổi có cùng độ lớn, được gọi là giá trị gì?',
+          'Hàng ngang số 4 (8 chữ cái): Giá trị của đại lượng điện (cường độ hoặc điện áp) được xác định bằng giá trị cực đại chia cho căn bậc hai của 2 (I = I₀/√2), tương đương với công suất tỏa nhiệt của dòng không đổi có cùng độ lớn, được gọi là giá trị gì?',
         displayWord: 'HIỆU DỤNG',
         acceptedAnswers: ['Hieu dung', 'Gia tri hieu dung'],
         explanation: 'Các số chỉ trên ampe kế, vôn kế và thông số 220V trên lưới điện dân dụng đều là giá trị hiệu dụng.',
@@ -408,7 +408,7 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
     ],
     centerQuestion: {
       question:
-        'Câu hỏi Ô Trung Tâm (6 chữ cái): Hệ thống máy phát và truyền tải điện năng công nghiệp phổ biến nhất trên lưới điện quốc gia hiện nay sử dụng 3 cuộn dây đặt lệch nhau một góc 120° trên stato được gọi là hệ thống điện gì?',
+        'Câu hỏi Ô Trung Tâm (5 chữ cái): Hệ thống máy phát và truyền tải điện năng công nghiệp phổ biến nhất trên lưới điện quốc gia hiện nay sử dụng 3 cuộn dây đặt lệch nhau một góc 120° trên stato được gọi là hệ thống điện gì?',
       displayWord: 'BA PHA',
       acceptedAnswers: ['Ba pha', '3 pha', 'He thong 3 pha'],
       explanation: 'Hệ thống điện 3 pha giúp tiết kiệm dây dẫn và tạo ra từ trường quay vận hành các động cơ không đồng bộ.',
@@ -447,9 +447,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 3,
         rowLabel: 'Hàng ngang số 3',
-        charCount: 9,
+        charCount: 8,
         question:
-          'Hàng ngang số 3 (9 chữ cái): Vị kiến trúc sư tốt nghiệp Trường Mỹ thuật Đông Dương (Ngô Huy ...), người được giao nhiệm vụ thiết kế và dựng gấp lễ đài bằng gỗ bọc vải đỏ – trắng tại vườn hoa Ba Đình chỉ trong vòng hơn một ngày đêm trước lễ 02/09/1945?',
+          'Hàng ngang số 3 (8 chữ cái): Vị kiến trúc sư tốt nghiệp Trường Mỹ thuật Đông Dương (Ngô Huy ...), người được giao nhiệm vụ thiết kế và dựng gấp lễ đài bằng gỗ bọc vải đỏ – trắng tại vườn hoa Ba Đình chỉ trong vòng hơn một ngày đêm trước lễ 02/09/1945?',
         displayWord: 'HUY QUỲNH',
         acceptedAnswers: ['Huy Quynh', 'Ngo Huy Quynh'],
         explanation: 'Kiến trúc sư Ngô Huy Quỳnh đã thiết kế Lễ đài Độc lập giản dị mà trang nghiêm tại vườn hoa Ba Đình.',
@@ -457,9 +457,9 @@ export const OBSTACLE_PUZZLES_PART2: ObstaclePuzzle[] = [
       {
         id: 4,
         rowLabel: 'Hàng ngang số 4',
-        charCount: 8,
+        charCount: 7,
         question:
-          'Hàng ngang số 4 (8 chữ cái): Hội nghị quốc tế của các nước Đồng minh chiến thắng phát xít (tổ chức tại San Francisco và ... năm 1945), được nhắc đến trong phần kết luận của văn kiện để khẳng định dân tộc Việt Nam đã đứng về phe Đồng minh chống phát xít nên "nước Việt Nam phải được tự do và độc lập"?',
+          'Hàng ngang số 4 (7 chữ cái): Hội nghị quốc tế của các nước Đồng minh chiến thắng phát xít (tổ chức tại San Francisco và ... năm 1945), được nhắc đến trong phần kết luận của văn kiện để khẳng định dân tộc Việt Nam đã đứng về phe Đồng minh chống phát xít nên "nước Việt Nam phải được tự do và độc lập"?',
         displayWord: 'TEHERAN',
         acceptedAnswers: ['Teheran', 'Hoi nghi Teheran', 'San Francisco'],
         explanation: 'Văn kiện viện dẫn nguyên tắc quyền dân tộc bình đẳng tại Hội nghị Teheran và Hội nghị Cựu Kim Sơn (San Francisco).',

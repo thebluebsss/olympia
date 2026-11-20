@@ -375,6 +375,152 @@ async function startServer() {
     res.json(result);
   });
 
+  // 2b. Edit / Update a Question or Answer in the Bank (Protected: Admin Only)
+  app.post('/api/questions/update', requireAdminAuth, (req, res) => {
+    try {
+      const {
+        qid,
+        question,
+        officialAnswer,
+        acceptedAnswers,
+        explanation,
+        categoryVi,
+        points,
+        imageUrl,
+      } = req.body || {};
+      if (!qid || typeof qid !== 'string') {
+        res.status(400).json({ error: 'Thiếu mã câu hỏi (QID) cần chỉnh sửa.' });
+        return;
+      }
+      const updated = csvQuestionBank.updateQuestionRecord(qid, {
+        question,
+        officialAnswer,
+        acceptedAnswers,
+        explanation,
+        categoryVi,
+        points,
+        imageUrl,
+      });
+      res.json({
+        ok: true,
+        item: updated,
+        stats: csvQuestionBank.getStats(),
+      });
+    } catch (err) {
+      res.status(400).json({
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Không thể cập nhật câu hỏi/đáp án.',
+      });
+    }
+  });
+
+  // 2c. Delete an individual Question from the Bank (Protected: Admin Only)
+  app.post('/api/questions/delete', requireAdminAuth, (req, res) => {
+    try {
+      const { qid } = req.body || {};
+      if (!qid || typeof qid !== 'string') {
+        res.status(400).json({ error: 'Thiếu mã câu hỏi (QID) cần xoá.' });
+        return;
+      }
+      const result = csvQuestionBank.deleteQuestionRecord(qid);
+      res.json({
+        ok: true,
+        ...result,
+        stats: csvQuestionBank.getStats(),
+      });
+    } catch (err) {
+      res.status(400).json({
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Không thể xoá câu hỏi khỏi kho dữ liệu.',
+      });
+    }
+  });
+
+  // 2d. Search & Lookup VCNV Obstacle Puzzles with Mystery Image & Answers (Protected: Admin Only)
+  app.get('/api/questions/vcnv-puzzles', requireAdminAuth, (req, res) => {
+    const { q, season, page, limit } = req.query;
+    const result = csvQuestionBank.searchVcnvPuzzles({
+      q: typeof q === 'string' ? q : undefined,
+      season: typeof season === 'string' ? season : undefined,
+      page: Number(page) || 1,
+      limit: Number(limit) || 12,
+    });
+    res.json(result);
+  });
+
+  // 2e. Edit / Update a VCNV Obstacle Puzzle (Image, Obstacle Answer, Rows, Center Question) (Protected: Admin Only)
+  app.post('/api/questions/vcnv-puzzles/update', requireAdminAuth, (req, res) => {
+    try {
+      const updatedPuzzle = csvQuestionBank.updateVcnvPuzzle(req.body || {});
+      // Also refresh any active room decks in LOBBY so changes apply immediately
+      for (const [code, room] of rooms.entries()) {
+        if (room.stage === 'LOBBY') {
+          room.questionDeck = csvQuestionBank.buildRoomQuestionDeck({
+            roomCode: code,
+            deckSeed: `v-${room.version || 1}-${Date.now()}`,
+            mode: room.questionDeck?.mode || 'CSV_RANDOM',
+            season: room.questionDeck?.season,
+            match: room.questionDeck?.match,
+            subjectFilter: room.questionDeck?.subjectFilter,
+          });
+          broadcastRoomState(code, room, true);
+        }
+      }
+      res.json({
+        ok: true,
+        item: updatedPuzzle,
+        stats: csvQuestionBank.getStats(),
+      });
+    } catch (err) {
+      res.status(400).json({
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Không thể cập nhật bộ Chướng Ngại Vật.',
+      });
+    }
+  });
+
+  // 2f. Delete an entire VCNV Obstacle Puzzle set (Protected: Admin Only)
+  app.post('/api/questions/vcnv-puzzles/delete', requireAdminAuth, (req, res) => {
+    try {
+      const { season, match } = req.body || {};
+      const result = csvQuestionBank.deleteVcnvPuzzle(
+        String(season || ''),
+        String(match || '')
+      );
+      for (const [code, room] of rooms.entries()) {
+        if (room.stage === 'LOBBY') {
+          room.questionDeck = csvQuestionBank.buildRoomQuestionDeck({
+            roomCode: code,
+            deckSeed: `v-${room.version || 1}-${Date.now()}`,
+            mode: room.questionDeck?.mode || 'CSV_RANDOM',
+            season: room.questionDeck?.season,
+            match: room.questionDeck?.match,
+            subjectFilter: room.questionDeck?.subjectFilter,
+          });
+          broadcastRoomState(code, room, true);
+        }
+      }
+      res.json({
+        ok: true,
+        ...result,
+        stats: csvQuestionBank.getStats(),
+      });
+    } catch (err) {
+      res.status(400).json({
+        error:
+          err instanceof Error
+            ? err.message
+            : 'Không thể xoá bộ Chướng Ngại Vật.',
+      });
+    }
+  });
+
   // 3. Upload & Convert a Large CSV File into Olympia Question Data (Protected: Admin Only)
   app.post('/api/questions/upload-csv', requireAdminAuth, (req, res) => {
     try {

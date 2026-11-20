@@ -21,6 +21,7 @@ import { BuzzerQueuePanel } from './shared/BuzzerQueuePanel';
 import {
   OBSTACLE_REAL_PHOTOS,
   resolveObstacleImageUrl,
+  buildContextual5PanelObstacleSvg,
 } from '../utils/obstacleIllustrations';
 
 const LOCAL_FALLBACK_BY_ID: Record<string, string> = OBSTACLE_REAL_PHOTOS;
@@ -33,7 +34,8 @@ function resolvePuzzleImageUrl(puzzle: ObstaclePuzzle): string {
     puzzle.title,
     puzzle.rows.map((r) => r.displayWord),
     puzzle.centerQuestion.displayWord,
-    puzzle.summaryExplanation
+    puzzle.summaryExplanation,
+    puzzle.rows.map((r) => r.question)
   );
 }
 
@@ -175,7 +177,7 @@ export const Round2VCNV: React.FC<Round2VCNVProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <div className="text-xs font-semibold text-amber-400">
-            PHẦN THI THỨ HAI · TỪ KHÓA GỒM {puzzle.charCount} CHỮ CÁI (ĐIỂM HIỆN TẠI: +{cnvReward}Đ)
+            PHẦN THI THỨ HAI · TỪ KHÓA GỒM {puzzle.keywordDisplay.replace(/\s+/g, '').length} CHỮ CÁI (ĐIỂM HIỆN TẠI: +{cnvReward}Đ)
           </div>
           <h2 className="text-2xl font-display font-extrabold text-white">
             2. Vượt Chướng Ngại Vật
@@ -219,7 +221,7 @@ export const Round2VCNV: React.FC<Round2VCNVProps> = ({
                 </button>
               )}
               <span className="px-2.5 py-0.5 rounded bg-amber-400/20 text-amber-200 text-[11px] font-bold">
-                Từ khóa CNV: {puzzle.keywordDisplay} ({puzzle.charCount} chữ cái)
+                Từ khóa CNV: {puzzle.keywordDisplay} ({puzzle.keywordDisplay.replace(/\s+/g, '').length} chữ cái)
               </span>
             </div>
           </div>
@@ -239,14 +241,21 @@ export const Round2VCNV: React.FC<Round2VCNVProps> = ({
             </div>
 
             <div className="md:col-span-9 grid grid-cols-1 sm:grid-cols-5 gap-2 text-xs">
-              {puzzle.rows.map((r) => (
-                <div key={r.id} className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-800">
-                  <div className="text-slate-400 font-semibold">Hàng ngang {r.id}:</div>
-                  <div className="font-mono font-bold text-emerald-400 mt-0.5">{r.displayWord}</div>
-                </div>
-              ))}
+              {puzzle.rows.map((r) => {
+                const exactRowChars = r.displayWord.replace(/\s+/g, '').length;
+                return (
+                  <div key={r.id} className="p-2.5 rounded-lg bg-slate-950/90 border border-slate-800">
+                    <div className="text-slate-400 font-semibold">
+                      Hàng ngang {r.id} ({exactRowChars} chữ):
+                    </div>
+                    <div className="font-mono font-bold text-emerald-400 mt-0.5">{r.displayWord}</div>
+                  </div>
+                );
+              })}
               <div className="p-2.5 rounded-lg bg-slate-950/90 border border-amber-500/40">
-                <div className="text-amber-300 font-semibold">Ô Trung Tâm:</div>
+                <div className="text-amber-300 font-semibold">
+                  Ô Trung Tâm ({puzzle.centerQuestion.displayWord.replace(/\s+/g, '').length} chữ):
+                </div>
                 <div className="font-mono font-bold text-amber-400 mt-0.5">
                   {puzzle.centerQuestion.displayWord}
                 </div>
@@ -487,12 +496,15 @@ export const Round2VCNV: React.FC<Round2VCNVProps> = ({
                   {selectorSeat.name} (Vị trí {selectorSeat.position})
                 </strong>
               </span>
-              <span className="font-mono text-amber-300">CNV: {puzzle.charCount} chữ cái</span>
+              <span className="font-mono text-amber-300">
+                CNV: {puzzle.keywordDisplay.replace(/\s+/g, '').length} chữ cái
+              </span>
             </div>
 
             {puzzle.rows.map((row) => {
               const status = round2.rowStatuses[row.id];
               const letters = row.displayWord.replace(/\s+/g, '').split('');
+              const exactRowCharCount = letters.length;
 
               return (
                 <div
@@ -525,7 +537,9 @@ export const Round2VCNV: React.FC<Round2VCNVProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs font-mono text-slate-400">({row.charCount} chữ)</span>
+                    <span className="px-2 py-1 rounded-md bg-slate-950 border border-slate-700 text-xs font-mono font-bold text-amber-300">
+                      {exactRowCharCount} chữ
+                    </span>
                     {status === 'UNOPENED' && round2.subPhase === 'SELECT_ROW' && isHost ? (
                       <button
                         onClick={() => {
@@ -594,8 +608,12 @@ export const Round2VCNV: React.FC<Round2VCNVProps> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-bold text-sky-300 uppercase">
                     {round2.subPhase === 'ANSWERING_ROW'
-                      ? `Câu hỏi Hàng ngang số ${round2.activeRowId}`
-                      : 'Câu hỏi Ô Trung Tâm'}
+                      ? `Câu hỏi Hàng ngang số ${round2.activeRowId} (${
+                          activeRowOrCenterObj?.displayWord.replace(/\s+/g, '').length || 0
+                        } chữ cái)`
+                      : `Câu hỏi Ô Trung Tâm (${
+                          activeRowOrCenterObj?.displayWord.replace(/\s+/g, '').length || 0
+                        } chữ cái)`}
                   </span>
                   <span className="font-mono font-bold text-sm sm:text-base text-amber-300 tabular-nums">
                     {round2.deadlineEpochMs
@@ -928,7 +946,16 @@ export const Round2VCNV: React.FC<Round2VCNVProps> = ({
               alt="Chướng ngại vật Olympia"
               referrerPolicy="no-referrer"
               onError={(e) => {
-                const fallback = LOCAL_FALLBACK_BY_ID[puzzle.id] || '/assets/vcnv/vcnv-1.jpg';
+                const fallback =
+                  LOCAL_FALLBACK_BY_ID[puzzle.id] ||
+                  buildContextual5PanelObstacleSvg({
+                    keywordDisplay: puzzle.keywordDisplay,
+                    title: puzzle.title,
+                    rowWords: puzzle.rows.map((r) => r.displayWord),
+                    rowQuestions: puzzle.rows.map((r) => r.question),
+                    centerWord: puzzle.centerQuestion.displayWord,
+                    summaryExplanation: puzzle.summaryExplanation,
+                  });
                 if (e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
               }}
               className="w-full h-full object-cover"

@@ -16,6 +16,10 @@ import {
   X,
   AlertCircle,
   Check,
+  Edit3,
+  Image as ImageIcon,
+  Save,
+  Trash2,
 } from 'lucide-react';
 import type { QuestionDeckMode, RoomQuestionDeck } from '../types/olympia';
 
@@ -54,7 +58,43 @@ interface BankQuestionRecord {
   acceptedAnswers: string[];
   explanation: string;
   points?: 20 | 30;
+  imageUrl?: string;
   sourceFile: string;
+}
+
+interface EditableVcnvRowRecord {
+  id: 1 | 2 | 3 | 4;
+  qid: string;
+  rowLabel: string;
+  charCount: number;
+  question: string;
+  displayWord: string;
+  acceptedAnswers: string[];
+  explanation: string;
+}
+
+interface EditableVcnvPuzzleRecord {
+  puzzleId: string;
+  season: string;
+  match: string;
+  cnvQid: string;
+  centerQid: string;
+  title: string;
+  keywordDisplay: string;
+  charCount: number;
+  acceptedKeywords: string[];
+  imageUrl: string;
+  rawImageUrl: string;
+  summaryExplanation: string;
+  rows: EditableVcnvRowRecord[];
+  centerQuestion: {
+    qid: string;
+    charCount: number;
+    question: string;
+    displayWord: string;
+    acceptedAnswers: string[];
+    explanation: string;
+  };
 }
 
 export interface DeckSelectionConfig {
@@ -78,6 +118,29 @@ interface CsvQuestionBankModalProps {
   onStatsUpdated?: (stats: QuestionBankStats) => void;
 }
 
+const BUILTIN_VCNV_PRESET_IMAGES: { label: string; url: string }[] = [
+  { label: 'Vịnh Hạ Long', url: '/assets/vcnv/vcnv-1.jpg' },
+  { label: 'Phố cổ Hội An', url: '/assets/vcnv/vcnv-2.jpg' },
+  { label: 'Trống đồng Đông Sơn', url: '/assets/vcnv/vcnv-3.jpg' },
+  { label: 'Điện Biên Phủ', url: '/assets/vcnv/vcnv-4.jpg' },
+  { label: 'Truyện Kiều (Nguyễn Du)', url: '/assets/vcnv/vcnv-5.jpg' },
+  { label: 'Vệ tinh Vinasat 1', url: '/assets/vcnv/vcnv-6.jpg' },
+  { label: 'Hệ Mặt Trời', url: '/assets/vcnv/vcnv-7.jpg' },
+  { label: 'Phở Việt Nam', url: '/assets/vcnv/vcnv-8.jpg' },
+  { label: 'Quang hợp', url: '/assets/vcnv/vcnv-9.jpg' },
+  { label: 'Áo dài Việt Nam', url: '/assets/vcnv/vcnv-10.jpg' },
+  { label: 'Mặt Trăng', url: '/assets/vcnv/vcnv-11.jpg' },
+  { label: 'Phân tử ADN', url: '/assets/vcnv/vcnv-12.jpg' },
+  { label: 'Chùa Một Cột', url: '/assets/vcnv/vcnv-13.jpg' },
+  { label: 'Định lý Pythagoras', url: '/assets/vcnv/vcnv-14.jpg' },
+  { label: 'Dòng điện xoay chiều', url: '/assets/vcnv/vcnv-15.jpg' },
+  { label: 'Tuyên ngôn Độc lập / Cách mạng T8', url: '/assets/vcnv/vcnv-16.jpg' },
+  { label: 'Cố đô Huế', url: '/assets/vcnv/vcnv-codohue.jpg' },
+  { label: 'Quần đảo Trường Sa', url: '/assets/vcnv/vcnv-truongsa.jpg' },
+  { label: 'Trí tuệ nhân tạo (AI)', url: '/assets/vcnv/vcnv-trituenhantao.jpg' },
+  { label: 'Bảng tuần hoàn Mendeleev', url: '/assets/vcnv/vcnv-bangtuanhoan.jpg' },
+];
+
 export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
   isOpen,
   onClose,
@@ -91,9 +154,9 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
   onApplyDeckToRoom,
   onStatsUpdated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'UPLOAD_CONVERT' | 'BROWSE_SEARCH' | 'SELECT_DECK'>(
-    'UPLOAD_CONVERT'
-  );
+  const [activeTab, setActiveTab] = useState<
+    'UPLOAD_CONVERT' | 'BROWSE_SEARCH' | 'VCNV_GALLERY' | 'SELECT_DECK'
+  >('BROWSE_SEARCH');
   const [stats, setStats] = useState<QuestionBankStats | null>(null);
   const [loadingStats, setLoadingStats] = useState<boolean>(false);
 
@@ -115,6 +178,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
   const [rawCsvPaste, setRawCsvPaste] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Tab 2: Question Search & Edit states
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [filterSeason, setFilterSeason] = useState<string>('');
   const [filterMatch, setFilterMatch] = useState<string>('');
@@ -128,6 +192,78 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
     items: BankQuestionRecord[];
   }>({ total: 0, page: 1, totalPages: 1, items: [] });
   const [isSearching, setIsSearching] = useState<boolean>(false);
+
+  const [editingQid, setEditingQid] = useState<string | null>(null);
+  const [editQForm, setEditQForm] = useState<{
+    question: string;
+    officialAnswer: string;
+    acceptedAnswersText: string;
+    explanation: string;
+    categoryVi: string;
+    points: 20 | 30;
+    imageUrl: string;
+  }>({
+    question: '',
+    officialAnswer: '',
+    acceptedAnswersText: '',
+    explanation: '',
+    categoryVi: '',
+    points: 20,
+    imageUrl: '',
+  });
+  const [isSavingQuestion, setIsSavingQuestion] = useState<boolean>(false);
+  const [confirmDeleteQid, setConfirmDeleteQid] = useState<string | null>(null);
+  const [isDeletingQuestion, setIsDeletingQuestion] = useState<boolean>(false);
+  const [questionEditMessage, setQuestionEditMessage] = useState<{
+    qid: string;
+    text: string;
+    isError?: boolean;
+  } | null>(null);
+
+  // Tab 3: VCNV Obstacle Image & Answer Lookup & Edit states
+  const [vcnvSearchQuery, setVcnvSearchQuery] = useState<string>('');
+  const [vcnvSeasonFilter, setVcnvSeasonFilter] = useState<string>('');
+  const [vcnvPage, setVcnvPage] = useState<number>(1);
+  const [vcnvResults, setVcnvResults] = useState<{
+    total: number;
+    page: number;
+    totalPages: number;
+    items: EditableVcnvPuzzleRecord[];
+  }>({ total: 0, page: 1, totalPages: 1, items: [] });
+  const [isLoadingVcnv, setIsLoadingVcnv] = useState<boolean>(false);
+
+  const [editingVcnvKey, setEditingVcnvKey] = useState<string | null>(null);
+  const [confirmDeleteVcnvKey, setConfirmDeleteVcnvKey] = useState<string | null>(null);
+  const [isDeletingVcnv, setIsDeletingVcnv] = useState<boolean>(false);
+  const [editVcnvForm, setEditVcnvForm] = useState<{
+    season: string;
+    match: string;
+    title: string;
+    keywordDisplay: string;
+    acceptedKeywordsText: string;
+    imageUrl: string;
+    summaryExplanation: string;
+    rows: {
+      id: 1 | 2 | 3 | 4;
+      question: string;
+      displayWord: string;
+      acceptedAnswersText: string;
+      explanation: string;
+    }[];
+    centerQuestion: {
+      question: string;
+      displayWord: string;
+      acceptedAnswersText: string;
+      explanation: string;
+    };
+  } | null>(null);
+  const [isSavingVcnv, setIsSavingVcnv] = useState<boolean>(false);
+  const [vcnvSaveMessage, setVcnvSaveMessage] = useState<{
+    key: string;
+    text: string;
+    isError?: boolean;
+  } | null>(null);
+  const vcnvImageUploadRef = useRef<HTMLInputElement>(null);
 
   const [isApplyingDeck, setIsApplyingDeck] = useState<boolean>(false);
   const [deckAppliedSuccess, setDeckAppliedSuccess] = useState<boolean>(false);
@@ -175,6 +311,29 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
     }
   }, [searchQuery, filterSeason, filterMatch, filterRound, filterSubject, searchPage, adminToken]);
 
+  const fetchVcnvPuzzles = useCallback(async () => {
+    setIsLoadingVcnv(true);
+    try {
+      const params = new URLSearchParams();
+      if (vcnvSearchQuery.trim()) params.set('q', vcnvSearchQuery.trim());
+      if (vcnvSeasonFilter) params.set('season', vcnvSeasonFilter);
+      params.set('page', String(vcnvPage));
+      params.set('limit', '10');
+
+      const res = await fetch(`/api/questions/vcnv-puzzles?${params.toString()}`, {
+        headers: adminToken ? { Authorization: `Bearer ${adminToken}` } : undefined,
+      });
+      const data = await res.json();
+      if (data && Array.isArray(data.items)) {
+        setVcnvResults(data);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsLoadingVcnv(false);
+    }
+  }, [vcnvSearchQuery, vcnvSeasonFilter, vcnvPage, adminToken]);
+
   useEffect(() => {
     if (isOpen) {
       fetchStats();
@@ -182,10 +341,326 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
   }, [isOpen, fetchStats]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && activeTab === 'BROWSE_SEARCH') {
       fetchSearchResults();
     }
-  }, [isOpen, fetchSearchResults]);
+  }, [isOpen, activeTab, fetchSearchResults]);
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'VCNV_GALLERY') {
+      fetchVcnvPuzzles();
+    }
+  }, [isOpen, activeTab, fetchVcnvPuzzles]);
+
+  const startEditingQuestion = (item: BankQuestionRecord) => {
+    setEditingQid(item.qid);
+    setQuestionEditMessage(null);
+    setEditQForm({
+      question: item.question,
+      officialAnswer: item.officialAnswer,
+      acceptedAnswersText: item.acceptedAnswers.join(' | '),
+      explanation: item.explanation || '',
+      categoryVi: item.categoryVi || 'Hiểu biết chung',
+      points: item.points === 30 ? 30 : 20,
+      imageUrl: item.imageUrl || '',
+    });
+  };
+
+  const handleSaveQuestionEdit = async (qid: string) => {
+    setIsSavingQuestion(true);
+    setQuestionEditMessage(null);
+    try {
+      const res = await fetch('/api/questions/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
+        body: JSON.stringify({
+          qid,
+          question: editQForm.question,
+          officialAnswer: editQForm.officialAnswer,
+          acceptedAnswers: editQForm.acceptedAnswersText
+            .split('|')
+            .map((s) => s.trim())
+            .filter(Boolean),
+          explanation: editQForm.explanation,
+          categoryVi: editQForm.categoryVi,
+          points: editQForm.points,
+          imageUrl: editQForm.imageUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setQuestionEditMessage({
+          qid,
+          text: data?.error || 'Không thể lưu câu hỏi.',
+          isError: true,
+        });
+      } else if (data?.item) {
+        setSearchResults((prev) => ({
+          ...prev,
+          items: prev.items.map((it) => (it.qid === qid ? data.item : it)),
+        }));
+        if (data.stats) {
+          setStats(data.stats);
+          onStatsUpdated?.(data.stats);
+        }
+        setEditingQid(null);
+        setQuestionEditMessage({
+          qid,
+          text: '✓ Đã lưu chỉnh sửa câu hỏi / đáp án thành công!',
+        });
+      }
+    } catch {
+      setQuestionEditMessage({
+        qid,
+        text: 'Lỗi kết nối khi lưu chỉnh sửa câu hỏi.',
+        isError: true,
+      });
+    } finally {
+      setIsSavingQuestion(false);
+    }
+  };
+
+  const handleDeleteQuestion = async (qid: string) => {
+    setIsDeletingQuestion(true);
+    setQuestionEditMessage(null);
+    try {
+      const res = await fetch('/api/questions/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
+        body: JSON.stringify({ qid }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setQuestionEditMessage({
+          qid,
+          text: data?.error || 'Không thể xoá câu hỏi này.',
+          isError: true,
+        });
+      } else {
+        setConfirmDeleteQid(null);
+        if (editingQid === qid) {
+          setEditingQid(null);
+        }
+        setSearchResults((prev) => ({
+          ...prev,
+          total: Math.max(0, prev.total - 1),
+          items: prev.items.filter((it) => it.qid !== qid),
+        }));
+        if (data?.stats) {
+          setStats(data.stats);
+          onStatsUpdated?.(data.stats);
+        }
+      }
+    } catch {
+      setQuestionEditMessage({
+        qid,
+        text: 'Lỗi kết nối khi xoá câu hỏi.',
+        isError: true,
+      });
+    } finally {
+      setIsDeletingQuestion(false);
+    }
+  };
+
+  const handleDeleteVcnvPuzzle = async (season: string, match: string) => {
+    const key = `${season}-${match}`;
+    setIsDeletingVcnv(true);
+    setVcnvSaveMessage(null);
+    try {
+      const res = await fetch('/api/questions/vcnv-puzzles/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
+        body: JSON.stringify({ season, match }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setVcnvSaveMessage({
+          key,
+          text: data?.error || 'Không thể xoá bộ Chướng Ngại Vật này.',
+          isError: true,
+        });
+      } else {
+        setConfirmDeleteVcnvKey(null);
+        if (editingVcnvKey === key) {
+          setEditingVcnvKey(null);
+          setEditVcnvForm(null);
+        }
+        setVcnvResults((prev) => ({
+          ...prev,
+          total: Math.max(0, prev.total - 1),
+          items: prev.items.filter(
+            (it) => !(it.season === season && it.match === match)
+          ),
+        }));
+        if (data?.stats) {
+          setStats(data.stats);
+          onStatsUpdated?.(data.stats);
+        }
+      }
+    } catch {
+      setVcnvSaveMessage({
+        key,
+        text: 'Lỗi kết nối khi xoá bộ Chướng Ngại Vật.',
+        isError: true,
+      });
+    } finally {
+      setIsDeletingVcnv(false);
+    }
+  };
+
+  const startEditingVcnvPuzzle = (puz: EditableVcnvPuzzleRecord) => {
+    const key = `${puz.season}-${puz.match}`;
+    setEditingVcnvKey(key);
+    setVcnvSaveMessage(null);
+    setEditVcnvForm({
+      season: puz.season,
+      match: puz.match,
+      title: puz.title,
+      keywordDisplay: puz.keywordDisplay,
+      acceptedKeywordsText: puz.acceptedKeywords.join(' | '),
+      imageUrl: puz.imageUrl,
+      summaryExplanation: puz.summaryExplanation || '',
+      rows: puz.rows.map((r) => ({
+        id: r.id,
+        question: r.question,
+        displayWord: r.displayWord,
+        acceptedAnswersText: r.acceptedAnswers.join(' | '),
+        explanation: r.explanation || '',
+      })),
+      centerQuestion: {
+        question: puz.centerQuestion.question,
+        displayWord: puz.centerQuestion.displayWord,
+        acceptedAnswersText: puz.centerQuestion.acceptedAnswers.join(' | '),
+        explanation: puz.centerQuestion.explanation || '',
+      },
+    });
+  };
+
+  const handleVcnvLocalImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editVcnvForm) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxW = 1280;
+        const maxH = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxW) {
+          h = Math.round((h * maxW) / w);
+          w = maxW;
+        }
+        if (h > maxH) {
+          w = Math.round((w * maxH) / h);
+          h = maxH;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setEditVcnvForm((prev) => (prev ? { ...prev, imageUrl: dataUrl } : prev));
+        }
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+    if (vcnvImageUploadRef.current) vcnvImageUploadRef.current.value = '';
+  };
+
+  const handleSaveVcnvPuzzle = async () => {
+    if (!editVcnvForm) return;
+    const key = `${editVcnvForm.season}-${editVcnvForm.match}`;
+    setIsSavingVcnv(true);
+    setVcnvSaveMessage(null);
+    try {
+      const res = await fetch('/api/questions/vcnv-puzzles/update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { Authorization: `Bearer ${adminToken}` } : {}),
+        },
+        body: JSON.stringify({
+          season: editVcnvForm.season,
+          match: editVcnvForm.match,
+          title: editVcnvForm.title,
+          keywordDisplay: editVcnvForm.keywordDisplay,
+          acceptedKeywords: editVcnvForm.acceptedKeywordsText
+            .split('|')
+            .map((s) => s.trim())
+            .filter(Boolean),
+          imageUrl: editVcnvForm.imageUrl,
+          summaryExplanation: editVcnvForm.summaryExplanation,
+          rows: editVcnvForm.rows.map((r) => ({
+            id: r.id,
+            question: r.question,
+            displayWord: r.displayWord,
+            acceptedAnswers: r.acceptedAnswersText
+              .split('|')
+              .map((s) => s.trim())
+              .filter(Boolean),
+            explanation: r.explanation,
+          })),
+          centerQuestion: {
+            question: editVcnvForm.centerQuestion.question,
+            displayWord: editVcnvForm.centerQuestion.displayWord,
+            acceptedAnswers: editVcnvForm.centerQuestion.acceptedAnswersText
+              .split('|')
+              .map((s) => s.trim())
+              .filter(Boolean),
+            explanation: editVcnvForm.centerQuestion.explanation,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setVcnvSaveMessage({
+          key,
+          text: data?.error || 'Không thể lưu bộ Chướng Ngại Vật.',
+          isError: true,
+        });
+      } else if (data?.item) {
+        setVcnvResults((prev) => ({
+          ...prev,
+          items: prev.items.map((it) =>
+            it.season === editVcnvForm.season && it.match === editVcnvForm.match
+              ? data.item
+              : it
+          ),
+        }));
+        if (data.stats) {
+          setStats(data.stats);
+          onStatsUpdated?.(data.stats);
+        }
+        setEditingVcnvKey(null);
+        setEditVcnvForm(null);
+        setVcnvSaveMessage({
+          key,
+          text: '✓ Đã cập nhật Ảnh, Đáp án Chướng Ngại Vật và các Hàng ngang thành công!',
+        });
+      }
+    } catch {
+      setVcnvSaveMessage({
+        key,
+        text: 'Lỗi kết nối khi lưu bộ Chướng Ngại Vật.',
+        isError: true,
+      });
+    } finally {
+      setIsSavingVcnv(false);
+    }
+  };
 
   const processAndUploadCsvFile = async (file: File) => {
     setUploadError('');
@@ -218,6 +693,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
           onStatsUpdated?.(data.stats);
         }
         fetchSearchResults();
+        fetchVcnvPuzzles();
       }
     } catch {
       setUploadError('Lỗi kết nối khi tải file CSV lên máy chủ. Vui lòng kiểm tra lại định dạng file.');
@@ -267,6 +743,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
           onStatsUpdated?.(data.stats);
         }
         fetchSearchResults();
+        fetchVcnvPuzzles();
       }
     } catch {
       setUploadError('Không thể gửi dữ liệu CSV lên máy chủ.');
@@ -291,6 +768,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
       }
       if (data?.report) setLastReport(data.report);
       fetchSearchResults();
+      fetchVcnvPuzzles();
     } catch {
       setUploadError('Không thể khôi phục kho câu hỏi mặc định.');
     } finally {
@@ -324,7 +802,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
           label: 'Tổng số câu hỏi',
           value: stats.totalQuestions.toLocaleString('vi-VN'),
           color: 'text-amber-300',
-          sub: 'Đã nạp trên Backend',
+          sub: 'Có thể tra cứu & chỉnh sửa',
         },
         {
           label: 'Số trận / Bộ đề',
@@ -342,7 +820,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
           label: 'Vòng 2: VCNV',
           value: (stats.byRound.VCNV || 0).toLocaleString('vi-VN'),
           color: 'text-emerald-300',
-          sub: 'Bộ đề & Hàng ngang',
+          sub: 'Kho Ảnh & Hàng ngang',
         },
         {
           label: 'Vòng 3: Tăng Tốc (TT)',
@@ -366,17 +844,15 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
         <div className="space-y-1">
           <div className="inline-flex items-center gap-2 text-xs font-extrabold text-amber-400 uppercase tracking-wider">
             <Database className="w-4 h-4" />
-            HỆ THỐNG BACKEND XỬ LÝ & CONVERT DỮ LIỆU CÂU HỎI CSV DUNG LƯỢNG LỚN
+            QUẢN LÝ KHO DỮ LIỆU CÂU HỎI · CHỈNH SỬA CÂU HỎI & HÌNH ẢNH CHƯỚNG NGẠI VẬT
           </div>
           <h2 className="text-2xl sm:text-3xl font-display font-extrabold text-white">
             Kho Dữ Liệu Câu Hỏi Olympia (
             {stats ? stats.totalQuestions.toLocaleString('vi-VN') : '21.640+'} Câu Hỏi)
           </h2>
           <p className="text-xs sm:text-sm text-slate-300">
-            Backend đã tự động nạp và convert file{' '}
-            <code className="font-mono text-amber-300">questions_7b1e9b9b.csv</code> (
-            {stats ? stats.totalMatches : 424} trận đấu Olympia Mùa 19–26). Bạn có thể tải thêm file
-            CSV, tra cứu, xuất file CSV mới hoặc chọn bộ đề cho trận đấu!
+            Tra cứu, chỉnh sửa trực tiếp câu hỏi/đáp án bị sai sót, tra cứu & thay đổi Hình ảnh +
+            Đáp án Chướng Ngại Vật (VCNV), tải thêm CSV hoặc chọn bộ đề cho phòng thi đấu!
           </p>
         </div>
 
@@ -402,22 +878,9 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
         </div>
       )}
 
-      {/* 3 Sub-Navigation Tabs */}
+      {/* 4 Sub-Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('UPLOAD_CONVERT')}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
-              activeTab === 'UPLOAD_CONVERT'
-                ? 'bg-amber-400 text-slate-950'
-                : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            1. Tải File CSV Lớn & Convert Sang Data Câu Hỏi
-          </button>
-
           <button
             type="button"
             onClick={() => setActiveTab('BROWSE_SEARCH')}
@@ -427,8 +890,21 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
                 : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
             }`}
           >
-            <Search className="w-4 h-4" />
-            2. Tra Cứu & Kiểm Tra Kho Câu Hỏi Đã Convert
+            <Edit3 className="w-4 h-4" />
+            1. Tra Cứu & Sửa Câu Hỏi / Đáp Án
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('VCNV_GALLERY')}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+              activeTab === 'VCNV_GALLERY'
+                ? 'bg-amber-400 text-slate-950'
+                : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <ImageIcon className="w-4 h-4" />
+            2. Tra Cứu & Sửa Ảnh / Đáp Án Chướng Ngại Vật (VCNV)
           </button>
 
           <button
@@ -441,20 +917,24 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
             }`}
           >
             <Layers className="w-4 h-4" />
-            3. Chọn Bộ Đề Thi Đấu Từ Kho CSV Cho Phòng
+            3. Chọn Bộ Đề Thi Đấu Cho Phòng
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('UPLOAD_CONVERT')}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer ${
+              activeTab === 'UPLOAD_CONVERT'
+                ? 'bg-amber-400 text-slate-950'
+                : 'bg-slate-950 text-slate-300 hover:text-white border border-slate-800'
+            }`}
+          >
+            <Upload className="w-4 h-4" />
+            4. Tải File CSV & Convert
           </button>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href="/assets/aistudio/olympia_new_questions.csv"
-            download="olympia_new_questions.csv"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/40 rounded-xl cursor-pointer"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Tải CSV Câu Hỏi Mới (Chuẩn 7 cột)
-          </a>
-
           <a
             href={`/api/questions/export-csv?onlyNew=0${
               adminToken ? `&token=${encodeURIComponent(adminToken)}` : ''
@@ -463,7 +943,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-amber-300 bg-amber-950/60 hover:bg-amber-900/60 border border-amber-500/40 rounded-xl cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
-            Xuất Toàn Bộ Kho CSV
+            Xuất Toàn Bộ Kho CSV (Đã gồm bản sửa)
           </a>
 
           <a
@@ -479,223 +959,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
         </div>
       </div>
 
-      {/* TAB 1: UPLOAD & CONVERT LARGE CSV */}
-      {activeTab === 'UPLOAD_CONVERT' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-7 space-y-5">
-            <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm font-bold text-white flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-amber-400" />
-                  <span>Chọn chế độ nạp dữ liệu CSV vào Backend</span>
-                </div>
-
-                <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setUploadMode('merge')}
-                    className={`px-3 py-1.5 rounded-md font-bold cursor-pointer ${
-                      uploadMode === 'merge'
-                        ? 'bg-amber-400 text-slate-950'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Gộp thêm / Cập nhật (Merge)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUploadMode('replace')}
-                    className={`px-3 py-1.5 rounded-md font-bold cursor-pointer ${
-                      uploadMode === 'replace'
-                        ? 'bg-rose-500 text-white'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Thay thế toàn bộ (Replace)
-                  </button>
-                </div>
-              </div>
-
-              <div
-                onClick={() => !isUploading && fileInputRef.current?.click()}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (isUploading) return;
-                  const f = e.dataTransfer.files?.[0];
-                  if (f) processAndUploadCsvFile(f);
-                }}
-                className="p-8 border-2 border-dashed border-amber-400/60 hover:border-amber-300 bg-slate-900/60 hover:bg-slate-900 rounded-2xl text-center space-y-3 transition-all cursor-pointer"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv,text/csv,text/plain"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <div className="w-12 h-12 rounded-2xl bg-amber-400/15 border border-amber-400/40 text-amber-300 flex items-center justify-center mx-auto">
-                  <Upload className="w-6 h-6" />
-                </div>
-                <div className="space-y-1">
-                  <div className="text-base font-extrabold text-white">
-                    Nhấn để chọn File CSV hoặc Kéo thả File CSV dung lượng lớn vào đây
-                  </div>
-                  <div className="text-xs text-slate-400">
-                    Hỗ trợ file CSV lên tới <strong>60 MB</strong>. Tự động tách đáp án phụ, số học,
-                    công thức hóa học và phân loại đúng vòng thi!
-                  </div>
-                </div>
-              </div>
-
-              {isUploading && (
-                <div className="p-4 bg-sky-950/60 border border-sky-400/50 rounded-xl text-xs font-semibold text-sky-200 flex items-center gap-3">
-                  <Sparkles className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
-                  <span>{uploadProgressText || 'Đang xử lý file CSV...'}</span>
-                </div>
-              )}
-
-              {uploadError && (
-                <div className="p-4 bg-rose-950/60 border border-rose-500/50 rounded-xl text-xs font-semibold text-rose-200 flex items-center gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>{uploadError}</span>
-                </div>
-              )}
-
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <label className="block text-xs font-bold text-slate-300 uppercase">
-                  Hoặc dán nhanh dữ liệu CSV trực tiếp để Convert:
-                </label>
-                <textarea
-                  rows={4}
-                  value={rawCsvPaste}
-                  onChange={(e) => setRawCsvPaste(e.target.value)}
-                  placeholder={`qid,season,match,round,subject,question,answer\n26-Custom-KD-A1.1,26,Final,KD,Math,"Số nguyên tố chẵn duy nhất là số mấy?",2`}
-                  className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-400"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={handleResetDefaultBank}
-                    disabled={isUploading || loadingStats}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    Khôi phục Kho Mặc Định
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handlePasteCsvConvert}
-                    disabled={isUploading}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-extrabold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    Convert Dữ Liệu CSV Đã Dán
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-5 space-y-4">
-            {lastReport ? (
-              <div className="p-5 bg-emerald-950/30 border-2 border-emerald-500/50 rounded-xl space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-emerald-300 uppercase">
-                    <CheckCircle2 className="w-4 h-4" />
-                    KẾT QUẢ CONVERT CSV THÀNH CÔNG
-                  </span>
-                  <span className="text-[11px] font-mono text-slate-400">{lastReport.fileName}</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2.5 text-xs">
-                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                    <div className="text-slate-400">Số dòng CSV đã đọc</div>
-                    <div className="font-mono font-extrabold text-base text-white">
-                      {lastReport.totalRowsParsed.toLocaleString('vi-VN')}
-                    </div>
-                  </div>
-                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                    <div className="text-slate-400">Câu hỏi hợp lệ đã Convert</div>
-                    <div className="font-mono font-extrabold text-base text-emerald-400">
-                      {lastReport.validQuestionsConverted.toLocaleString('vi-VN')}
-                    </div>
-                  </div>
-                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                    <div className="text-slate-400">Đã lọc bỏ câu lỗi/trống</div>
-                    <div className="font-mono font-bold text-sm text-amber-300">
-                      {lastReport.skippedMalformedCount} dòng
-                    </div>
-                  </div>
-                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
-                    <div className="text-slate-400">Tổng kho sau khi nạp</div>
-                    <div className="font-mono font-extrabold text-base text-sky-300">
-                      {lastReport.totalBankSizeAfter.toLocaleString('vi-VN')} câu
-                    </div>
-                  </div>
-                </div>
-
-                {lastReport.sampleConverted.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-xs font-bold text-slate-300 uppercase">
-                      Mẫu câu hỏi vừa Convert:
-                    </div>
-                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                      {lastReport.sampleConverted.slice(0, 5).map((item) => (
-                        <div
-                          key={item.qid}
-                          className="p-3 bg-slate-950 border border-slate-800 rounded-lg text-xs space-y-1"
-                        >
-                          <div className="flex items-center justify-between text-[11px] text-sky-300 font-semibold">
-                            <span>
-                              [{item.round}] {item.qid} · {item.categoryVi}
-                            </span>
-                            {item.points && (
-                              <span className="text-amber-300 font-mono">{item.points}đ</span>
-                            )}
-                          </div>
-                          <div className="text-white font-medium">{item.question}</div>
-                          <div className="text-emerald-300 font-semibold">
-                            Đáp án gốc: "{item.officialAnswer}"
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 text-xs text-slate-300 leading-relaxed">
-                <div className="text-sm font-bold text-white">
-                  Cơ chế Backend Convert CSV sang Data Câu Hỏi Olympia:
-                </div>
-                <p>
-                  • <strong>Chuẩn hóa cấu trúc 7 cột Olympia:</strong> Hỗ trợ trực tiếp cấu trúc{' '}
-                  <code className="text-amber-300">
-                    qid,season,match,round,subject,question,answer
-                  </code>{' '}
-                  hoặc file CSV bất kỳ có cột <code className="text-amber-300">question,answer</code>.
-                </p>
-                <p>
-                  • <strong>Tự động sinh danh sách đáp án chấp nhận (Accepted Answers):</strong> Tự
-                  động tách lời giải thích riêng và cho phép người chơi gõ các biến thể hợp lệ đều
-                  được chấm ĐÚNG!
-                </p>
-                <p>
-                  • <strong>Phân bổ đúng Vòng Thi:</strong> Các mã câu hỏi{' '}
-                  <code className="text-amber-300">KD</code> vào Khởi Động,{' '}
-                  <code className="text-amber-300">VCNV</code> vào Vượt Chướng Ngại Vật,{' '}
-                  <code className="text-amber-300">TT</code> vào Tăng Tốc (4 câu), và{' '}
-                  <code className="text-amber-300">VD</code> vào gói 20đ / 30đ phần Về Đích!
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: BROWSE & SEARCH */}
+      {/* ==================== TAB 1: BROWSE, SEARCH & EDIT QUESTIONS ==================== */}
       {activeTab === 'BROWSE_SEARCH' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 p-4 bg-slate-950 border border-slate-800 rounded-xl">
@@ -712,7 +976,7 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
                     setSearchQuery(e.target.value);
                     setSearchPage(1);
                   }}
-                  placeholder="Nhập từ khóa (VD: Newton, sóng điện từ, Xuân Diệu...)"
+                  placeholder="Nhập từ khóa câu hỏi hoặc đáp án cần tìm / sửa..."
                   className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-400"
                 />
               </div>
@@ -813,7 +1077,9 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
                 <strong className="font-mono text-amber-300">
                   {searchResults.total.toLocaleString('vi-VN')}
                 </strong>{' '}
-                câu hỏi đã convert (Trang {searchResults.page} / {searchResults.totalPages})
+                câu hỏi (Trang {searchResults.page} / {searchResults.totalPages}) — Nhấn nút{' '}
+                <strong className="text-amber-300">"Sửa Câu Hỏi / Đáp Án"</strong> ở bất kỳ câu nào
+                để chỉnh sửa ngay!
               </span>
             </div>
 
@@ -843,54 +1109,866 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 max-h-[420px] overflow-y-auto pr-1">
-            {searchResults.items.map((item) => (
-              <div
-                key={item.qid}
-                className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-2 hover:border-slate-700 transition-colors"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-2.5 py-0.5 rounded bg-amber-400/15 text-amber-300 border border-amber-400/40 font-mono font-bold">
-                      {item.qid}
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded bg-sky-500/15 text-sky-300 font-semibold">
-                      Olympia {item.season} · Trận {item.match}
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded bg-slate-800 text-slate-200 font-semibold">
-                      Vòng {item.round} · {item.categoryVi}
-                    </span>
+          <div className="grid grid-cols-1 gap-3 max-h-[520px] overflow-y-auto pr-1">
+            {searchResults.items.map((item) => {
+              const isEditingThis = editingQid === item.qid;
+              const vcnvChars =
+                item.round === 'VCNV'
+                  ? item.officialAnswer.split('/')[0].trim().replace(/\s+/g, '').length
+                  : 0;
+
+              return (
+                <div
+                  key={item.qid}
+                  className={`p-4 bg-slate-950 border rounded-xl space-y-2.5 transition-colors ${
+                    isEditingThis
+                      ? 'border-2 border-amber-400'
+                      : 'border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-2.5 py-0.5 rounded bg-amber-400/15 text-amber-300 border border-amber-400/40 font-mono font-bold">
+                        {item.qid}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded bg-sky-500/15 text-sky-300 font-semibold">
+                        Olympia {item.season} · Trận {item.match}
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded bg-slate-800 text-slate-200 font-semibold">
+                        Vòng {item.round} · {item.categoryVi}
+                      </span>
+                      {item.round === 'VCNV' && vcnvChars > 0 && (
+                        <span className="px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono font-bold">
+                          {vcnvChars} chữ cái
+                        </span>
+                      )}
+                      {item.points && (
+                        <span className="font-mono font-bold text-emerald-400">
+                          Gói {item.points} điểm
+                        </span>
+                      )}
+                    </div>
+
+                    {!isEditingThis && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmDeleteQid(null);
+                            startEditingQuestion(item);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400/20 hover:bg-amber-400/30 border border-amber-400/50 text-amber-300 font-bold text-xs cursor-pointer transition-colors"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Sửa Câu Hỏi / Đáp Án
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setConfirmDeleteQid((prev) =>
+                              prev === item.qid ? null : item.qid
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold text-xs cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Xoá Câu Hỏi
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  {item.points && (
-                    <span className="font-mono font-bold text-emerald-400">
-                      Gói {item.points} điểm
-                    </span>
+
+                  {confirmDeleteQid === item.qid && (
+                    <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-500/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <span className="font-bold text-rose-200">
+                        ⚠️ Bạn có chắc chắn muốn xoá câu hỏi{' '}
+                        <code className="font-mono text-amber-300">{item.qid}</code> khỏi kho dữ
+                        liệu?
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteQid(null)}
+                          className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold cursor-pointer"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isDeletingQuestion}
+                          onClick={() => handleDeleteQuestion(item.qid)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-400 text-white font-extrabold cursor-pointer shadow"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          {isDeletingQuestion ? 'Đang xoá...' : 'Xác Nhận Xoá'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {questionEditMessage && questionEditMessage.qid === item.qid && (
+                    <div
+                      className={`p-2.5 rounded-lg text-xs font-bold flex items-center justify-between ${
+                        questionEditMessage.isError
+                          ? 'bg-rose-950/60 border border-rose-500/50 text-rose-200'
+                          : 'bg-emerald-950/60 border border-emerald-500/50 text-emerald-300'
+                      }`}
+                    >
+                      <span>{questionEditMessage.text}</span>
+                      <button
+                        type="button"
+                        onClick={() => setQuestionEditMessage(null)}
+                        className="text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {isEditingThis ? (
+                    <div className="p-4 bg-slate-900 border border-slate-700 rounded-xl space-y-3 text-xs">
+                      <div className="text-xs font-extrabold text-amber-300 uppercase flex items-center justify-between">
+                        <span>Đang chỉnh sửa câu hỏi: {item.qid}</span>
+                        {item.round === 'VCNV' && (
+                          <span className="font-mono text-emerald-300">
+                            Số chữ tự động tính:{' '}
+                            {editQForm.officialAnswer
+                              .split('/')[0]
+                              .trim()
+                              .replace(/\s+/g, '').length}{' '}
+                            chữ cái
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block font-bold text-slate-300 mb-1">
+                          Nội dung Câu Hỏi:
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={editQForm.question}
+                          onChange={(e) =>
+                            setEditQForm((prev) => ({ ...prev, question: e.target.value }))
+                          }
+                          className="w-full p-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs sm:text-sm focus:outline-none focus:border-amber-400"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-bold text-emerald-300 mb-1">
+                            Đáp án chính thức:
+                          </label>
+                          <input
+                            type="text"
+                            value={editQForm.officialAnswer}
+                            onChange={(e) =>
+                              setEditQForm((prev) => ({
+                                ...prev,
+                                officialAnswer: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 bg-slate-950 border border-emerald-500/60 rounded-lg text-white font-bold text-xs sm:text-sm focus:outline-none focus:border-emerald-400"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-amber-300 mb-1">
+                            Các biến thể chấm ĐÚNG (phân cách bằng dấu |):
+                          </label>
+                          <input
+                            type="text"
+                            value={editQForm.acceptedAnswersText}
+                            onChange={(e) =>
+                              setEditQForm((prev) => ({
+                                ...prev,
+                                acceptedAnswersText: e.target.value,
+                              }))
+                            }
+                            placeholder="VD: Vịnh Hạ Long | Vinh Ha Long | Ha Long"
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-amber-200 font-mono text-xs focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-2">
+                          <label className="block font-bold text-slate-300 mb-1">
+                            Giải thích / Ghi chú đáp án:
+                          </label>
+                          <input
+                            type="text"
+                            value={editQForm.explanation}
+                            onChange={(e) =>
+                              setEditQForm((prev) => ({
+                                ...prev,
+                                explanation: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-300 mb-1">
+                            Lĩnh vực / Chủ đề:
+                          </label>
+                          <input
+                            type="text"
+                            value={editQForm.categoryVi}
+                            onChange={(e) =>
+                              setEditQForm((prev) => ({
+                                ...prev,
+                                categoryVi: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+                      </div>
+
+                      {item.round === 'VCNV' &&
+                        (item.subCode.toUpperCase() === 'CNV' ||
+                          item.subCode.toUpperCase() === 'KEYWORD') && (
+                          <div>
+                            <label className="block font-bold text-sky-300 mb-1">
+                              Đường dẫn Hình ảnh Chướng Ngại Vật (URL hoặc /assets/vcnv/...):
+                            </label>
+                            <input
+                              type="text"
+                              value={editQForm.imageUrl}
+                              onChange={(e) =>
+                                setEditQForm((prev) => ({
+                                  ...prev,
+                                  imageUrl: e.target.value,
+                                }))
+                              }
+                              placeholder="/assets/vcnv/vcnv-1.jpg hoặc https://..."
+                              className="w-full px-3 py-2 bg-slate-950 border border-sky-500/50 rounded-lg text-sky-200 font-mono text-xs focus:outline-none"
+                            />
+                          </div>
+                        )}
+
+                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setEditingQid(null)}
+                          className="px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSavingQuestion}
+                          onClick={() => handleSaveQuestionEdit(item.qid)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-xs cursor-pointer shadow-md"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          {isSavingQuestion ? 'Đang lưu...' : 'Lưu Câu Hỏi / Đáp Án'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-white leading-relaxed">
+                        {item.question}
+                      </p>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-900 text-xs">
+                        <div className="text-emerald-300 font-bold">
+                          Đáp án chính thức:{' '}
+                          <span className="font-mono bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-500/30">
+                            {item.officialAnswer}
+                          </span>
+                        </div>
+                        <div className="text-slate-400">
+                          Biến thể chấm đúng:{' '}
+                          <code className="text-amber-200 font-mono">
+                            {item.acceptedAnswers.join(' | ')}
+                          </code>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
-
-                <p className="text-sm font-semibold text-white leading-relaxed">{item.question}</p>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-900 text-xs">
-                  <div className="text-emerald-300 font-bold">
-                    Đáp án chính thức:{' '}
-                    <span className="font-mono bg-emerald-950/70 px-2 py-0.5 rounded border border-emerald-500/30">
-                      {item.officialAnswer}
-                    </span>
-                  </div>
-                  <div className="text-slate-400">
-                    Biến thể chấm đúng:{' '}
-                    <code className="text-amber-200 font-mono">
-                      {item.acceptedAnswers.join(' | ')}
-                    </code>
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* TAB 3: SELECT QUESTION DECK */}
+      {/* ==================== TAB 2: VCNV OBSTACLE IMAGE & ANSWER LOOKUP & EDITOR ==================== */}
+      {activeTab === 'VCNV_GALLERY' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-4 bg-slate-950 border border-slate-800 rounded-xl items-end">
+            <div className="sm:col-span-7">
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
+                Tra cứu Chướng Ngại Vật (Theo Đáp án CNV, Chủ đề, Mã bộ đề hoặc từ khóa hàng ngang)
+              </label>
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={vcnvSearchQuery}
+                  onChange={(e) => {
+                    setVcnvSearchQuery(e.target.value);
+                    setVcnvPage(1);
+                  }}
+                  placeholder="VD: Vịnh Hạ Long, Truyện Kiều, Phở Việt Nam, Vinasat, M1Q4, VCNV01..."
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+
+            <div className="sm:col-span-3">
+              <label className="block text-[11px] font-semibold text-slate-400 uppercase mb-1">
+                Lọc theo Mùa Olympia
+              </label>
+              <select
+                value={vcnvSeasonFilter}
+                onChange={(e) => {
+                  setVcnvSeasonFilter(e.target.value);
+                  setVcnvPage(1);
+                }}
+                className="w-full px-3 py-2.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-amber-400"
+              >
+                <option value="">Tất cả các mùa (162 bộ VCNV)</option>
+                {stats?.seasonsList.map((s) => (
+                  <option key={s.season} value={s.season}>
+                    Olympia Mùa {s.season}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 flex items-center justify-end gap-1.5">
+              <button
+                type="button"
+                disabled={vcnvPage <= 1 || isLoadingVcnv}
+                onClick={() => setVcnvPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-200 disabled:opacity-40 cursor-pointer"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-mono text-amber-300 px-1">
+                {vcnvResults.page}/{vcnvResults.totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={vcnvPage >= vcnvResults.totalPages || isLoadingVcnv}
+                onClick={() => setVcnvPage((p) => Math.min(vcnvResults.totalPages, p + 1))}
+                className="px-3 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg text-xs font-bold text-slate-200 disabled:opacity-40 cursor-pointer"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
+            <span>
+              Đang hiển thị{' '}
+              <strong className="font-mono text-amber-300">{vcnvResults.total}</strong> bộ Chướng
+              Ngại Vật kèm Hình ảnh & Đáp án (Trang {vcnvResults.page}/{vcnvResults.totalPages}).
+              Nhấn <strong className="text-amber-300">"Sửa Ảnh / Đáp Án CNV"</strong> để đổi ảnh
+              hoặc sửa đáp án!
+            </span>
+          </div>
+
+          <div className="space-y-4 max-h-[560px] overflow-y-auto pr-1">
+            {vcnvResults.items.map((puz) => {
+              const itemKey = `${puz.season}-${puz.match}`;
+              const isEditingThisVcnv = editingVcnvKey === itemKey && editVcnvForm !== null;
+
+              return (
+                <div
+                  key={itemKey}
+                  className={`p-5 bg-slate-950 border rounded-2xl space-y-4 transition-all ${
+                    isEditingThisVcnv
+                      ? 'border-2 border-amber-400 shadow-xl'
+                      : 'border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  {vcnvSaveMessage && vcnvSaveMessage.key === itemKey && (
+                    <div
+                      className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between ${
+                        vcnvSaveMessage.isError
+                          ? 'bg-rose-950/60 border border-rose-500/50 text-rose-200'
+                          : 'bg-emerald-950/60 border border-emerald-500/50 text-emerald-300'
+                      }`}
+                    >
+                      <span>{vcnvSaveMessage.text}</span>
+                      <button
+                        type="button"
+                        onClick={() => setVcnvSaveMessage(null)}
+                        className="text-slate-400 hover:text-white cursor-pointer"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    {/* Left: Mystery Image Preview */}
+                    <div className="lg:col-span-4 space-y-2.5">
+                      <div className="relative aspect-16/10 rounded-xl overflow-hidden border-2 border-slate-700 bg-slate-900">
+                        <img
+                          src={isEditingThisVcnv ? editVcnvForm.imageUrl : puz.imageUrl}
+                          alt={puz.keywordDisplay}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-2 left-2 px-2.5 py-1 rounded-md bg-slate-950/85 border border-amber-400/50 text-[11px] font-mono font-bold text-amber-300">
+                          Olympia {puz.season} · {puz.match}
+                        </div>
+                        <div className="absolute bottom-0 inset-x-0 bg-slate-950/85 px-3 py-1.5 flex items-center justify-between text-xs">
+                          <span className="font-extrabold text-emerald-300 truncate">
+                            CNV: {puz.keywordDisplay}
+                          </span>
+                          <span className="font-mono font-bold text-amber-300 shrink-0 ml-2">
+                            {puz.charCount} chữ cái
+                          </span>
+                        </div>
+                      </div>
+
+                      {!isEditingThisVcnv && (
+                        <div className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setConfirmDeleteVcnvKey(null);
+                              startEditingVcnvPuzzle(puz);
+                            }}
+                            className="w-full py-2.5 px-4 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            Sửa Ảnh / Đáp Án Chướng Ngại Vật & Hàng Ngang
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setConfirmDeleteVcnvKey((prev) =>
+                                prev === itemKey ? null : itemKey
+                              )
+                            }
+                            className="w-full py-2 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 text-rose-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Xoá Bộ Chướng Ngại Vật Này
+                          </button>
+
+                          {confirmDeleteVcnvKey === itemKey && (
+                            <div className="p-3 rounded-xl bg-rose-950/80 border border-rose-500/60 space-y-2 text-xs">
+                              <div className="font-bold text-rose-200">
+                                ⚠️ Xoá toàn bộ bộ đề VCNV{' '}
+                                <span className="text-amber-300">
+                                  Olympia {puz.season} · {puz.match} ({puz.keywordDisplay})
+                                </span>
+                                ?
+                              </div>
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteVcnvKey(null)}
+                                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold cursor-pointer"
+                                >
+                                  Hủy
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={isDeletingVcnv}
+                                  onClick={() =>
+                                    handleDeleteVcnvPuzzle(puz.season, puz.match)
+                                  }
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-400 text-white font-extrabold cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                  {isDeletingVcnv ? 'Đang xoá...' : 'Xác Nhận Xoá'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: CNV Details & 4 Horizontal Rows + Center */}
+                    <div className="lg:col-span-8 space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-800 pb-2.5">
+                        <div>
+                          <div className="text-xs font-bold text-sky-300 uppercase">
+                            Chủ đề: {puz.title}
+                          </div>
+                          <div className="text-lg font-display font-extrabold text-white flex flex-wrap items-center gap-2 mt-0.5">
+                            <span>Đáp án Chướng Ngại Vật:</span>
+                            <span className="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-mono">
+                              {puz.keywordDisplay}
+                            </span>
+                            <span className="text-xs font-mono text-amber-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
+                              {puz.charCount} chữ cái
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="text-xs text-slate-400">
+                          Biến thể chấp nhận:{' '}
+                          <code className="text-amber-200 font-mono">
+                            {puz.acceptedKeywords.join(' | ')}
+                          </code>
+                        </div>
+                      </div>
+
+                      {puz.summaryExplanation && (
+                        <p className="text-xs text-slate-300 leading-relaxed">
+                          {puz.summaryExplanation}
+                        </p>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        {puz.rows.map((r) => (
+                          <div
+                            key={r.id}
+                            className="p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-sky-300">
+                                Hàng ngang {r.id} ({r.charCount} chữ):
+                              </span>
+                              <span className="font-mono font-extrabold text-emerald-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                                {r.displayWord}
+                              </span>
+                            </div>
+                            <div className="text-slate-300 line-clamp-2">{r.question}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30 text-xs space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-amber-300">
+                            Ô Trung Tâm ({puz.centerQuestion.charCount} chữ):
+                          </span>
+                          <span className="font-mono font-extrabold text-amber-300 bg-slate-950 px-2 py-0.5 rounded border border-amber-500/40">
+                            {puz.centerQuestion.displayWord}
+                          </span>
+                        </div>
+                        <div className="text-slate-300 line-clamp-2">
+                          {puz.centerQuestion.question}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Editor for VCNV Image, Keyword, and Horizontal Rows */}
+                  {isEditingThisVcnv && editVcnvForm && (
+                    <div className="p-5 bg-slate-900 border-2 border-amber-400/70 rounded-xl space-y-4 text-xs mt-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+                        <div className="text-sm font-extrabold text-amber-300 uppercase">
+                          ✏️ Chỉnh sửa Ảnh & Đáp án Chướng Ngại Vật (Olympia {editVcnvForm.season} ·{' '}
+                          {editVcnvForm.match})
+                        </div>
+                        <span className="font-mono font-bold text-emerald-300">
+                          Số chữ cái CNV tự động tính:{' '}
+                          {
+                            editVcnvForm.keywordDisplay
+                              .split('/')[0]
+                              .trim()
+                              .replace(/\s+/g, '').length
+                          }{' '}
+                          chữ cái
+                        </span>
+                      </div>
+
+                      {/* 1. Edit Obstacle Answer & Title */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block font-bold text-emerald-300 mb-1">
+                            Đáp án Chướng Ngại Vật (Từ khóa chính):
+                          </label>
+                          <input
+                            type="text"
+                            value={editVcnvForm.keywordDisplay}
+                            onChange={(e) =>
+                              setEditVcnvForm((prev) =>
+                                prev ? { ...prev, keywordDisplay: e.target.value } : prev
+                              )
+                            }
+                            className="w-full px-3 py-2 bg-slate-950 border-2 border-emerald-400 rounded-lg text-white font-mono font-extrabold text-sm focus:outline-none"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-amber-300 mb-1">
+                            Biến thể đáp án CNV chấp nhận (phân cách bởi |):
+                          </label>
+                          <input
+                            type="text"
+                            value={editVcnvForm.acceptedKeywordsText}
+                            onChange={(e) =>
+                              setEditVcnvForm((prev) =>
+                                prev ? { ...prev, acceptedKeywordsText: e.target.value } : prev
+                              )
+                            }
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-amber-200 font-mono text-xs focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-slate-300 mb-1">
+                            Chủ đề bộ đề VCNV:
+                          </label>
+                          <input
+                            type="text"
+                            value={editVcnvForm.title}
+                            onChange={(e) =>
+                              setEditVcnvForm((prev) =>
+                                prev ? { ...prev, title: e.target.value } : prev
+                              )
+                            }
+                            className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 2. Edit Obstacle Image (URL, File Upload, or Preset Gallery) */}
+                      <div className="p-4 bg-slate-950 border border-sky-500/40 rounded-xl space-y-3">
+                        <div className="text-xs font-extrabold text-sky-300 uppercase">
+                          🖼️ Thay đổi Hình ảnh Chướng Ngại Vật (1 ảnh thống nhất mở dần 4 góc + ô
+                          trung tâm)
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                          <div className="sm:col-span-6">
+                            <label className="block text-slate-300 font-semibold mb-1">
+                              Dán Link URL Ảnh hoặc đường dẫn ảnh:
+                            </label>
+                            <input
+                              type="text"
+                              value={editVcnvForm.imageUrl}
+                              onChange={(e) =>
+                                setEditVcnvForm((prev) =>
+                                  prev ? { ...prev, imageUrl: e.target.value } : prev
+                                )
+                              }
+                              placeholder="https://... hoặc /assets/vcnv/vcnv-1.jpg"
+                              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sky-200 font-mono text-xs focus:outline-none focus:border-sky-400"
+                            />
+                          </div>
+
+                          <div className="sm:col-span-3">
+                            <label className="block text-slate-300 font-semibold mb-1">
+                              Hoặc chọn nhanh từ Kho ảnh sẵn có:
+                            </label>
+                            <select
+                              value=""
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val) {
+                                  setEditVcnvForm((prev) =>
+                                    prev ? { ...prev, imageUrl: val } : prev
+                                  );
+                                }
+                              }}
+                              className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs focus:outline-none focus:border-amber-400"
+                            >
+                              <option value="">-- Chọn tranh VCNV mẫu --</option>
+                              {BUILTIN_VCNV_PRESET_IMAGES.map((img) => (
+                                <option key={img.url} value={img.url}>
+                                  {img.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="sm:col-span-3">
+                            <input
+                              ref={vcnvImageUploadRef}
+                              type="file"
+                              accept="image/*"
+                              onChange={handleVcnvLocalImageUpload}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => vcnvImageUploadRef.current?.click()}
+                              className="w-full py-2 px-3 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/60 text-sky-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              Tải Ảnh Từ Máy Lên
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-300 font-semibold mb-1">
+                            Giải thích ý nghĩa Chướng Ngại Vật:
+                          </label>
+                          <input
+                            type="text"
+                            value={editVcnvForm.summaryExplanation}
+                            onChange={(e) =>
+                              setEditVcnvForm((prev) =>
+                                prev ? { ...prev, summaryExplanation: e.target.value } : prev
+                              )
+                            }
+                            className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-amber-400"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 3. Edit 4 Horizontal Rows & Center Question */}
+                      <div className="space-y-2.5">
+                        <div className="text-xs font-extrabold text-amber-300 uppercase">
+                          Chỉnh sửa 4 Hàng Ngang & Ô Trung Tâm (Số chữ cái tự động chuẩn hóa theo
+                          đáp án):
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {editVcnvForm.rows.map((rowItem, rIdx) => {
+                            const exactLen = rowItem.displayWord
+                              .split('/')[0]
+                              .trim()
+                              .replace(/\s+/g, '').length;
+                            return (
+                              <div
+                                key={rowItem.id}
+                                className="p-3 bg-slate-950 border border-slate-800 rounded-xl space-y-2"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold text-sky-300">
+                                    Hàng ngang số {rowItem.id}
+                                  </span>
+                                  <span className="font-mono font-bold text-amber-300">
+                                    {exactLen} chữ cái
+                                  </span>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={rowItem.displayWord}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEditVcnvForm((prev) => {
+                                      if (!prev) return prev;
+                                      const nextRows = [...prev.rows];
+                                      nextRows[rIdx] = { ...nextRows[rIdx], displayWord: val };
+                                      return { ...prev, rows: nextRows };
+                                    });
+                                  }}
+                                  placeholder="Đáp án hàng ngang..."
+                                  className="w-full px-2.5 py-1.5 bg-slate-900 border border-emerald-500/50 rounded-lg text-emerald-300 font-mono font-bold text-xs"
+                                />
+                                <textarea
+                                  rows={2}
+                                  value={rowItem.question}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setEditVcnvForm((prev) => {
+                                      if (!prev) return prev;
+                                      const nextRows = [...prev.rows];
+                                      nextRows[rIdx] = { ...nextRows[rIdx], question: val };
+                                      return { ...prev, rows: nextRows };
+                                    });
+                                  }}
+                                  placeholder="Câu hỏi hàng ngang..."
+                                  className="w-full p-2 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        <div className="p-3 bg-slate-950 border border-amber-500/40 rounded-xl space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-amber-300">
+                              Câu hỏi & Đáp án Ô Trung Tâm (Mảnh ghép số 5)
+                            </span>
+                            <span className="font-mono font-bold text-amber-300">
+                              {
+                                editVcnvForm.centerQuestion.displayWord
+                                  .split('/')[0]
+                                  .trim()
+                                  .replace(/\s+/g, '').length
+                              }{' '}
+                              chữ cái
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <input
+                              type="text"
+                              value={editVcnvForm.centerQuestion.displayWord}
+                              onChange={(e) =>
+                                setEditVcnvForm((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        centerQuestion: {
+                                          ...prev.centerQuestion,
+                                          displayWord: e.target.value,
+                                        },
+                                      }
+                                    : prev
+                                )
+                              }
+                              placeholder="Đáp án Ô Trung Tâm..."
+                              className="px-2.5 py-1.5 bg-slate-900 border border-amber-400/60 rounded-lg text-amber-300 font-mono font-bold text-xs"
+                            />
+                            <input
+                              type="text"
+                              value={editVcnvForm.centerQuestion.question}
+                              onChange={(e) =>
+                                setEditVcnvForm((prev) =>
+                                  prev
+                                    ? {
+                                        ...prev,
+                                        centerQuestion: {
+                                          ...prev.centerQuestion,
+                                          question: e.target.value,
+                                        },
+                                      }
+                                    : prev
+                                )
+                              }
+                              placeholder="Nội dung câu hỏi Ô Trung Tâm..."
+                              className="sm:col-span-2 px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white text-xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingVcnvKey(null);
+                            setEditVcnvForm(null);
+                          }}
+                          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                        >
+                          Hủy
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isSavingVcnv}
+                          onClick={handleSaveVcnvPuzzle}
+                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-extrabold text-xs sm:text-sm cursor-pointer shadow-lg"
+                        >
+                          <Save className="w-4 h-4" />
+                          {isSavingVcnv
+                            ? 'Đang lưu bộ Chướng Ngại Vật...'
+                            : 'Lưu Ảnh & Đáp Án Chướng Ngại Vật'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ==================== TAB 3: SELECT QUESTION DECK ==================== */}
       {activeTab === 'SELECT_DECK' && (
         <div className="space-y-5">
           {currentDeck && (
@@ -1106,6 +2184,188 @@ export const CsvQuestionBankModal: React.FC<CsvQuestionBankModalProps> = ({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ==================== TAB 4: UPLOAD & CONVERT LARGE CSV ==================== */}
+      {activeTab === 'UPLOAD_CONVERT' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="lg:col-span-7 space-y-5">
+            <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-bold text-white flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-amber-400" />
+                  <span>Chọn chế độ nạp dữ liệu CSV vào Backend</span>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('merge')}
+                    className={`px-3 py-1.5 rounded-md font-bold cursor-pointer ${
+                      uploadMode === 'merge'
+                        ? 'bg-amber-400 text-slate-950'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Gộp thêm / Cập nhật (Merge)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUploadMode('replace')}
+                    className={`px-3 py-1.5 rounded-md font-bold cursor-pointer ${
+                      uploadMode === 'replace'
+                        ? 'bg-rose-500 text-white'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Thay thế toàn bộ (Replace)
+                  </button>
+                </div>
+              </div>
+
+              <div
+                onClick={() => !isUploading && fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (isUploading) return;
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) processAndUploadCsvFile(f);
+                }}
+                className="p-8 border-2 border-dashed border-amber-400/60 hover:border-amber-300 bg-slate-900/60 hover:bg-slate-900 rounded-2xl text-center space-y-3 transition-all cursor-pointer"
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv,text/csv,text/plain"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <div className="w-12 h-12 rounded-2xl bg-amber-400/15 border border-amber-400/40 text-amber-300 flex items-center justify-center mx-auto">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <div className="text-base font-extrabold text-white">
+                    Nhấn để chọn File CSV hoặc Kéo thả File CSV dung lượng lớn vào đây
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    Hỗ trợ file CSV lên tới <strong>60 MB</strong>. Tự động tách đáp án phụ, số học,
+                    công thức hóa học và phân loại đúng vòng thi!
+                  </div>
+                </div>
+              </div>
+
+              {isUploading && (
+                <div className="p-4 bg-sky-950/60 border border-sky-400/50 rounded-xl text-xs font-semibold text-sky-200 flex items-center gap-3">
+                  <Sparkles className="w-4 h-4 text-amber-400 animate-spin shrink-0" />
+                  <span>{uploadProgressText || 'Đang xử lý file CSV...'}</span>
+                </div>
+              )}
+
+              {uploadError && (
+                <div className="p-4 bg-rose-950/60 border border-rose-500/50 rounded-xl text-xs font-semibold text-rose-200 flex items-center gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{uploadError}</span>
+                </div>
+              )}
+
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <label className="block text-xs font-bold text-slate-300 uppercase">
+                  Hoặc dán nhanh dữ liệu CSV trực tiếp để Convert:
+                </label>
+                <textarea
+                  rows={4}
+                  value={rawCsvPaste}
+                  onChange={(e) => setRawCsvPaste(e.target.value)}
+                  placeholder={`qid,season,match,round,subject,question,answer\n26-Custom-KD-A1.1,26,Final,KD,Math,"Số nguyên tố chẵn duy nhất là số mấy?",2`}
+                  className="w-full p-3 bg-slate-900 border border-slate-700 rounded-xl font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-400"
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetDefaultBank}
+                    disabled={isUploading || loadingStats}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Khôi phục Kho Mặc Định
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handlePasteCsvConvert}
+                    disabled={isUploading}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-extrabold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Convert Dữ Liệu CSV Đã Dán
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-5 space-y-4">
+            {lastReport ? (
+              <div className="p-5 bg-emerald-950/30 border-2 border-emerald-500/50 rounded-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-emerald-300 uppercase">
+                    <CheckCircle2 className="w-4 h-4" />
+                    KẾT QUẢ CONVERT CSV THÀNH CÔNG
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-400">{lastReport.fileName}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
+                    <div className="text-slate-400">Số dòng CSV đã đọc</div>
+                    <div className="font-mono font-extrabold text-base text-white">
+                      {lastReport.totalRowsParsed.toLocaleString('vi-VN')}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
+                    <div className="text-slate-400">Câu hỏi hợp lệ đã Convert</div>
+                    <div className="font-mono font-extrabold text-base text-emerald-400">
+                      {lastReport.validQuestionsConverted.toLocaleString('vi-VN')}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
+                    <div className="text-slate-400">Đã lọc bỏ câu lỗi/trống</div>
+                    <div className="font-mono font-bold text-sm text-amber-300">
+                      {lastReport.skippedMalformedCount} dòng
+                    </div>
+                  </div>
+                  <div className="p-3 bg-slate-950 rounded-lg border border-slate-800">
+                    <div className="text-slate-400">Tổng kho sau khi nạp</div>
+                    <div className="font-mono font-extrabold text-base text-sky-300">
+                      {lastReport.totalBankSizeAfter.toLocaleString('vi-VN')} câu
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-5 bg-slate-950 border border-slate-800 rounded-xl space-y-3 text-xs text-slate-300 leading-relaxed">
+                <div className="text-sm font-bold text-white">
+                  Hướng dẫn Quản lý & Chỉnh sửa Kho Câu Hỏi Olympia:
+                </div>
+                <p>
+                  • <strong>Sửa câu hỏi / đáp án:</strong> Tại mục{' '}
+                  <code className="text-amber-300">1. Tra Cứu & Sửa Câu Hỏi / Đáp Án</code>, bạn có
+                  thể tìm bất kỳ câu hỏi nào và nhấn nút <strong>Sửa Câu Hỏi / Đáp Án</strong> để cập
+                  nhật nội dung câu hỏi, đáp án chính thức và biến thể chấm đúng.
+                </p>
+                <p>
+                  • <strong>Tra cứu & Sửa Ảnh / Đáp án Chướng Ngại Vật:</strong> Tại mục{' '}
+                  <code className="text-amber-300">
+                    2. Tra Cứu & Sửa Ảnh / Đáp Án Chướng Ngại Vật (VCNV)
+                  </code>
+                  , bạn có thể xem toàn bộ 162 bộ Chướng Ngại Vật kèm hình ảnh gợi ý, đổi ảnh từ máy
+                  tính hoặc link URL, và chỉnh sửa đáp án CNV cùng 4 hàng ngang.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

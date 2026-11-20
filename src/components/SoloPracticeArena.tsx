@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Play,
   RotateCcw,
@@ -9,13 +9,10 @@ import {
   Star,
   Bell,
   Trophy,
-  Sparkles,
   BookOpen,
-  Timer,
   Shuffle,
   ArrowLeft,
   Eye,
-  Award,
 } from 'lucide-react';
 import type { RoomQuestionDeck } from '../types/olympia.ts';
 import {
@@ -101,7 +98,6 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
   // ==================== ROUND 1 STATE ====================
   const [r1Index, setR1Index] = useState<number>(0);
   const [r1Input, setR1Input] = useState<string>('');
-  const [r1TimeLeft, setR1TimeLeft] = useState<number>(12);
   const [r1Feedback, setR1Feedback] = useState<{
     correct: boolean;
     userAnswer: string;
@@ -127,7 +123,6 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
   const [r2CenterStatus, setR2CenterStatus] = useState<'UNOPENED' | 'SOLVED' | 'LOCKED'>('UNOPENED');
   const [r2ActiveRow, setR2ActiveRow] = useState<1 | 2 | 3 | 4 | 'CENTER' | null>(null);
   const [r2RowInput, setR2RowInput] = useState<string>('');
-  const [r2TimeLeft, setR2TimeLeft] = useState<number>(15);
   const [r2RowFeedback, setR2RowFeedback] = useState<{
     correct: boolean;
     rowLabel: string;
@@ -152,17 +147,13 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
   // ==================== ROUND 3 STATE ====================
   const [r3Index, setR3Index] = useState<number>(0);
   const [r3Input, setR3Input] = useState<string>('');
-  const [r3TimeLeft, setR3TimeLeft] = useState<number>(15);
-  const [r3ElapsedSec, setR3ElapsedSec] = useState<number>(0);
   const [r3Feedback, setR3Feedback] = useState<{
     correct: boolean;
     userAnswer: string;
     officialAnswer: string;
     explanation: string;
-    timeSec: number;
     pointsDelta: number;
   } | null>(null);
-  const r3StartPerfRef = useRef<number>(performance.now());
 
   const r3Questions: AccelerationQuestion[] = (
     deck.tangTocQuestions && deck.tangTocQuestions.length >= 4
@@ -179,7 +170,6 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
   const [r4StarUsed, setR4StarUsed] = useState<boolean>(false);
   const [r4StarActive, setR4StarActive] = useState<boolean>(false);
   const [r4Input, setR4Input] = useState<string>('');
-  const [r4TimeLeft, setR4TimeLeft] = useState<number>(15);
   const [r4Feedback, setR4Feedback] = useState<{
     correct: boolean;
     userAnswer: string;
@@ -198,7 +188,6 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
     // R1
     setR1Index(0);
     setR1Input('');
-    setR1TimeLeft(12);
     setR1Feedback(null);
     // R2
     setR2PuzzleIdx(0);
@@ -213,11 +202,7 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
     // R3
     setR3Index(0);
     setR3Input('');
-    const firstTtLimit = newDeck.tangTocQuestions?.[0]?.timeLimitSec || 15;
-    setR3TimeLeft(firstTtLimit);
-    setR3ElapsedSec(0);
     setR3Feedback(null);
-    r3StartPerfRef.current = performance.now();
     // R4
     setR4SubPhase('PACKAGE');
     setR4Package([20, 20, 30]);
@@ -259,11 +244,11 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
     fetchNewPracticeDeck(initialSubjectFilter, '');
   }, [fetchNewPracticeDeck, initialSubjectFilter]);
 
-  // ==================== ROUND 1 AUTO TIMER & GRADING ====================
+  // ==================== ROUND 1 GRADING (UNLIMITED TIME) ====================
   const submitR1Answer = useCallback(
     (rawAns: string) => {
       if (!currentR1Q || r1Feedback) return;
-      const trimmed = rawAns.trim() || '(Hết giờ / Bỏ qua)';
+      const trimmed = rawAns.trim() || '(Bỏ qua)';
       const isCorrect =
         rawAns.trim().length > 0 &&
         isAnswerMatch(rawAns, currentR1Q.acceptedAnswers, currentR1Q.answer);
@@ -296,24 +281,6 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
     [currentR1Q, r1Feedback, r1Index]
   );
 
-  useEffect(() => {
-    if (activeTab !== 'R1_KHOI_DONG' || r1Feedback || !currentR1Q) return;
-    setR1TimeLeft(12);
-    const endMs = Date.now() + 12000;
-    const timer = window.setInterval(() => {
-      const rem = Math.max(0, Math.ceil((endMs - Date.now()) / 1000));
-      setR1TimeLeft((prev) => {
-        if (rem !== prev && rem > 0 && rem <= 3) soundFX.playTick(true);
-        return rem;
-      });
-      if (rem <= 0) {
-        window.clearInterval(timer);
-        submitR1Answer('');
-      }
-    }, 150);
-    return () => window.clearInterval(timer);
-  }, [activeTab, r1Index, r1Feedback, currentR1Q, submitR1Answer]);
-
   const handleNextR1Question = () => {
     if (r1Index + 1 < r1Questions.length) {
       setR1Index((i) => i + 1);
@@ -325,11 +292,11 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
     }
   };
 
-  // ==================== ROUND 2 AUTO TIMER & GRADING ====================
+  // ==================== ROUND 2 GRADING (UNLIMITED TIME) ====================
   const submitR2RowAnswer = useCallback(
     (rawAns: string) => {
       if (!r2ActiveRow || r2RowFeedback) return;
-      const trimmed = rawAns.trim() || '(Hết giờ / Bỏ qua)';
+      const trimmed = rawAns.trim() || '(Bỏ qua)';
 
       if (r2ActiveRow === 'CENTER') {
         const centerQ = currentPuzzle.centerQuestion;
@@ -398,24 +365,6 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
     [r2ActiveRow, r2RowFeedback, currentPuzzle]
   );
 
-  useEffect(() => {
-    if (activeTab !== 'R2_VCNV' || !r2ActiveRow || r2RowFeedback || r2CnvSolved) return;
-    setR2TimeLeft(15);
-    const endMs = Date.now() + 15000;
-    const timer = window.setInterval(() => {
-      const rem = Math.max(0, Math.ceil((endMs - Date.now()) / 1000));
-      setR2TimeLeft((prev) => {
-        if (rem !== prev && rem > 0 && rem <= 3) soundFX.playTick(true);
-        return rem;
-      });
-      if (rem <= 0) {
-        window.clearInterval(timer);
-        submitR2RowAnswer('');
-      }
-    }, 150);
-    return () => window.clearInterval(timer);
-  }, [activeTab, r2ActiveRow, r2RowFeedback, r2CnvSolved, submitR2RowAnswer]);
-
   const openedRowsCount = Object.values(r2RowStatuses).filter(
     (st) => st !== 'UNOPENED'
   ).length;
@@ -466,27 +415,17 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
     ]);
   };
 
-  // ==================== ROUND 3 AUTO TIMER & GRADING ====================
+  // ==================== ROUND 3 GRADING (UNLIMITED TIME) ====================
   const submitR3Answer = useCallback(
     (rawAns: string) => {
       if (!currentR3Q || r3Feedback) return;
-      const limitSec = currentR3Q.timeLimitSec || 20;
-      const elapsed = Math.min(
-        limitSec,
-        Math.max(0.05, Number(((performance.now() - r3StartPerfRef.current) / 1000).toFixed(2)))
-      );
-      const trimmed = rawAns.trim() || '(Hết giờ / Bỏ qua)';
+      const trimmed = rawAns.trim() || '(Bỏ qua)';
       const isCorrect =
         rawAns.trim().length > 0 &&
         isAnswerMatch(rawAns, currentR3Q.acceptedAnswers, currentR3Q.answer);
 
-      let pts = 0;
+      const pts = isCorrect ? 40 : 0;
       if (isCorrect) {
-        const ratio = elapsed / limitSec;
-        if (ratio <= 0.4) pts = 40;
-        else if (ratio <= 0.65) pts = 30;
-        else if (ratio <= 0.85) pts = 20;
-        else pts = 10;
         soundFX.playCorrect();
       } else {
         soundFX.playWrong();
@@ -498,7 +437,6 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
         userAnswer: trimmed,
         officialAnswer: currentR3Q.answer,
         explanation: currentR3Q.explanation,
-        timeSec: elapsed,
         pointsDelta: pts,
       });
       setHistory((prev) => [
@@ -510,43 +448,13 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
           officialAnswer: currentR3Q.answer,
           correct: isCorrect,
           pointsDelta: pts,
-          timeSec: elapsed,
         },
       ]);
     },
     [currentR3Q, r3Feedback]
   );
 
-  useEffect(() => {
-    if (activeTab !== 'R3_TANG_TOC' || r3Feedback || !currentR3Q) return;
-    const limitSec = currentR3Q.timeLimitSec || 20;
-    setR3TimeLeft(limitSec);
-    setR3ElapsedSec(0);
-    r3StartPerfRef.current = performance.now();
-    const endMs = Date.now() + limitSec * 1000;
-
-    const timer = window.setInterval(() => {
-      const msLeft = endMs - Date.now();
-      const rem = Math.max(0, Math.ceil(msLeft / 1000));
-      const elapsed = Math.min(
-        limitSec,
-        Math.max(0, (performance.now() - r3StartPerfRef.current) / 1000)
-      );
-      setR3ElapsedSec(Number(elapsed.toFixed(2)));
-      setR3TimeLeft((prev) => {
-        if (rem !== prev && rem > 0 && rem <= 3) soundFX.playTick(true);
-        return rem;
-      });
-      if (msLeft <= 0) {
-        window.clearInterval(timer);
-        submitR3Answer('');
-      }
-    }, 50);
-
-    return () => window.clearInterval(timer);
-  }, [activeTab, r3Index, r3Feedback, currentR3Q, submitR3Answer]);
-
-  // ==================== ROUND 4 AUTO TIMER & GRADING ====================
+  // ==================== ROUND 4 GRADING (UNLIMITED TIME) ====================
   const startR4Package = () => {
     const p20 = [...(deck.veDich20Questions || VE_DICH_20_QUESTIONS)];
     const p30 = [...(deck.veDich30Questions || VE_DICH_30_QUESTIONS)];
@@ -576,7 +484,7 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
   const submitR4Answer = useCallback(
     (rawAns: string) => {
       if (!currentR4Q || r4Feedback) return;
-      const trimmed = rawAns.trim() || '(Hết giờ / Bỏ qua)';
+      const trimmed = rawAns.trim() || '(Bỏ qua)';
       const isCorrect =
         rawAns.trim().length > 0 &&
         isAnswerMatch(rawAns, currentR4Q.acceptedAnswers, currentR4Q.answer);
@@ -614,34 +522,6 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
     },
     [currentR4Q, r4Feedback, r4StarActive, r4Index]
   );
-
-  useEffect(() => {
-    if (
-      activeTab !== 'R4_VE_DICH' ||
-      r4SubPhase !== 'PLAYING' ||
-      r4Feedback ||
-      !currentR4Q
-    ) {
-      return;
-    }
-    const limitSec = currentR4Q.points === 20 ? 15 : 20;
-    setR4TimeLeft(limitSec);
-    const endMs = Date.now() + limitSec * 1000;
-
-    const timer = window.setInterval(() => {
-      const rem = Math.max(0, Math.ceil((endMs - Date.now()) / 1000));
-      setR4TimeLeft((prev) => {
-        if (rem !== prev && rem > 0 && rem <= 3) soundFX.playTick(true);
-        return rem;
-      });
-      if (rem <= 0) {
-        window.clearInterval(timer);
-        submitR4Answer('');
-      }
-    }, 150);
-
-    return () => window.clearInterval(timer);
-  }, [activeTab, r4SubPhase, r4Index, r4Feedback, currentR4Q, submitR4Answer]);
 
   // Allow user to override a synonym as correct if machine string-matching missed a valid synonym
   const handleManualSynonymOverride = (
@@ -701,7 +581,7 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
             <div>
               <div className="flex items-center gap-2 text-xs font-extrabold text-sky-400 uppercase">
                 <BookOpen className="w-3.5 h-3.5" />
-                CHẾ ĐỘ ÔN TẬP 1 NGƯỜI · MÁY TỰ CHẤM KHÔNG CẦN MC
+                CHẾ ĐỘ ÔN TẬP 1 NGƯỜI · MÁY TỰ CHẤM · KHÔNG GIỚI HẠN THỜI GIAN
               </div>
               <div className="text-lg font-display font-extrabold text-white">
                 Nhà Leo Núi: {playerName} ({playerSchool})
@@ -818,14 +698,8 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
               </h2>
             </div>
 
-            <div
-              className={`w-14 h-14 rounded-xl border flex items-center justify-center font-mono font-bold text-2xl tabular-nums ${
-                r1TimeLeft <= 3
-                  ? 'bg-rose-500/20 border-rose-500 text-rose-300'
-                  : 'bg-slate-800 border-slate-700 text-amber-300'
-              }`}
-            >
-              {r1Feedback ? 'XONG' : `${r1TimeLeft}s`}
+            <div className="px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-sky-300">
+              {r1Feedback ? '✓ Đã nộp đáp án' : '∞ Không giới hạn thời gian'}
             </div>
           </div>
 
@@ -944,10 +818,10 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
               <div className="text-xs font-bold text-amber-400 uppercase">
-                VÒNG 2: VƯỢT CHƯỚNG NGẠI VẬT ({currentPuzzle.charCount} CHỮ CÁI) · ĐIỂM CNV HIỆN TẠI: +{cnvRewardPoints}Đ
+                VÒNG 2: VƯỢT CHƯỚNG NGẠI VẬT ({currentPuzzle.keywordDisplay.replace(/\s+/g, '').length} CHỮ CÁI) · ĐIỂM CNV HIỆN TẠI: +{cnvRewardPoints}Đ
               </div>
               <h2 className="text-2xl font-display font-extrabold text-white">
-                Chướng Ngại Vật: {r2CnvSolved ? currentPuzzle.keywordDisplay : `${currentPuzzle.charCount} chữ cái`}
+                Chướng Ngại Vật: {r2CnvSolved ? currentPuzzle.keywordDisplay : `${currentPuzzle.keywordDisplay.replace(/\s+/g, '').length} chữ cái`}
               </h2>
             </div>
 
@@ -1054,7 +928,8 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                     currentPuzzle.title,
                     currentPuzzle.rows.map((r) => r.displayWord),
                     currentPuzzle.centerQuestion.displayWord,
-                    currentPuzzle.summaryExplanation
+                    currentPuzzle.summaryExplanation,
+                    currentPuzzle.rows.map((r) => r.question)
                   )}
                   alt="Hình ảnh gợi ý Chướng Ngại Vật"
                   className="w-full h-full object-cover"
@@ -1127,6 +1002,10 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                 {currentPuzzle.rows.map((row) => {
                   const st = r2RowStatuses[row.id];
                   const isSelected = r2ActiveRow === row.id;
+                  const letters = row.displayWord.replace(/\s+/g, '').split('');
+                  const exactRowCharCount = letters.length;
+                  const isRevealed = st === 'SOLVED' || Boolean(r2CnvSolved);
+
                   return (
                     <div
                       key={row.id}
@@ -1140,31 +1019,43 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                           : 'bg-slate-950 border-slate-800'
                       }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-800 font-mono text-xs font-bold text-amber-300">
-                          HN {row.id} ({row.charCount} chữ)
-                        </span>
-                        <span className="font-mono font-extrabold text-sm tracking-widest text-white">
-                          {st === 'SOLVED' || r2CnvSolved
-                            ? row.displayWord
-                            : '● '.repeat(row.charCount).trim()}
-                        </span>
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        {letters.map((ch, idx) => (
+                          <span
+                            key={idx}
+                            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-mono text-xs sm:text-sm font-bold border ${
+                              isRevealed
+                                ? 'bg-emerald-500 text-slate-950 border-emerald-300'
+                                : st === 'LOCKED'
+                                ? 'bg-slate-800 text-slate-500 border-slate-700'
+                                : 'bg-sky-900/70 text-sky-200 border-sky-500/50'
+                            }`}
+                          >
+                            {isRevealed ? ch : ''}
+                          </span>
+                        ))}
                       </div>
 
-                      {st === 'UNOPENED' && !r2CnvSolved && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            soundFX.playRoundStart();
-                            setR2ActiveRow(row.id as 1 | 2 | 3 | 4);
-                            setR2RowFeedback(null);
-                            setR2RowInput('');
-                          }}
-                          className="px-3.5 py-1.5 rounded-lg bg-sky-400 hover:bg-sky-300 text-slate-950 font-extrabold text-xs cursor-pointer"
-                        >
-                          Chọn mở HN {row.id}
-                        </button>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 font-mono text-xs font-bold text-amber-300">
+                          HN {row.id} ({exactRowCharCount} chữ)
+                        </span>
+
+                        {st === 'UNOPENED' && !r2CnvSolved && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              soundFX.playRoundStart();
+                              setR2ActiveRow(row.id as 1 | 2 | 3 | 4);
+                              setR2RowFeedback(null);
+                              setR2RowInput('');
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg bg-sky-400 hover:bg-sky-300 text-slate-950 font-extrabold text-xs cursor-pointer"
+                          >
+                            Chọn mở HN {row.id}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -1174,7 +1065,8 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                   !r2CnvSolved && (
                     <div className="p-3.5 rounded-xl border border-amber-400/50 bg-amber-950/20 flex items-center justify-between">
                       <span className="text-xs font-bold text-amber-300">
-                        Ô Trung Tâm (Mảnh ghép số 5)
+                        Ô Trung Tâm (Mảnh ghép số 5 ·{' '}
+                        {currentPuzzle.centerQuestion.displayWord.replace(/\s+/g, '').length} chữ cái)
                       </span>
                       <button
                         type="button"
@@ -1196,12 +1088,18 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                   <div className="flex items-center justify-between text-xs font-bold text-sky-300">
                     <span>
                       {r2ActiveRow === 'CENTER'
-                        ? 'Câu hỏi Ô Trung Tâm'
-                        : `Câu hỏi Hàng ngang số ${r2ActiveRow}`}
+                        ? `Câu hỏi Ô Trung Tâm (${
+                            currentPuzzle.centerQuestion.displayWord.replace(/\s+/g, '').length
+                          } chữ cái)`
+                        : `Câu hỏi Hàng ngang số ${r2ActiveRow} (${
+                            currentPuzzle.rows
+                              .find((r) => r.id === r2ActiveRow)
+                              ?.displayWord.replace(/\s+/g, '').length || 0
+                          } chữ cái)`}
                     </span>
                     {!r2RowFeedback && (
-                      <span className="font-mono text-amber-300">
-                        ⏱ Còn {r2TimeLeft}s
+                      <span className="text-sky-300/90 font-semibold">
+                        ∞ Tự do suy nghĩ & nộp đáp án
                       </span>
                     )}
                   </div>
@@ -1219,21 +1117,28 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                         e.preventDefault();
                         submitR2RowAnswer(r2RowInput);
                       }}
-                      className="flex gap-2.5"
+                      className="flex flex-wrap gap-2.5"
                     >
                       <input
                         type="text"
                         value={r2RowInput}
                         onChange={(e) => setR2RowInput(e.target.value)}
                         placeholder="Nhập đáp án hàng ngang và nhấn Enter..."
-                        className="flex-1 px-4 py-3 bg-slate-900 border border-amber-400 rounded-xl text-white text-sm font-semibold focus:outline-none"
+                        className="flex-1 min-w-[200px] px-4 py-3 bg-slate-900 border border-amber-400 rounded-xl text-white text-sm font-semibold focus:outline-none"
                         autoFocus
                       />
                       <button
                         type="submit"
                         className="px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-xs sm:text-sm cursor-pointer"
                       >
-                        Nộp
+                        Nộp Đáp Án
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => submitR2RowAnswer('')}
+                        className="px-4 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer"
+                      >
+                        Bỏ qua
                       </button>
                     </form>
                   ) : (
@@ -1269,26 +1174,15 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
             <div>
               <div className="text-xs font-bold text-amber-400 uppercase">
-                VÒNG 3: TĂNG TỐC · TÍNH GIỜ CHÍNH XÁC 0.01 GIÂY (+40 / +30 / +20 / +10 ĐIỂM)
+                VÒNG 3: TĂNG TỐC · TỰ NỘP ĐÁP ÁN KHÔNG GIỚI HẠN THỜI GIAN (+40 ĐIỂM / CÂU ĐÚNG)
               </div>
               <h2 className="text-2xl font-display font-extrabold text-white">
-                Câu Tăng Tốc {r3Index + 1} / 4 ({currentR3Q.timeLimitSec} giây)
+                Câu Tăng Tốc {r3Index + 1} / 4
               </h2>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div className="text-right font-mono text-xs text-sky-300">
-                ⏱ Đã trôi qua: {r3ElapsedSec.toFixed(2)}s
-              </div>
-              <div
-                className={`w-14 h-14 rounded-xl border flex items-center justify-center font-mono font-bold text-2xl tabular-nums ${
-                  r3TimeLeft <= 5
-                    ? 'bg-rose-500/20 border-rose-500 text-rose-300'
-                    : 'bg-slate-800 border-slate-700 text-amber-300'
-                }`}
-              >
-                {r3Feedback ? 'XONG' : `${r3TimeLeft}s`}
-              </div>
+            <div className="px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-sky-300">
+              {r3Feedback ? '✓ Đã nộp đáp án' : '∞ Không giới hạn thời gian'}
             </div>
           </div>
 
@@ -1325,7 +1219,7 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                 type="text"
                 value={r3Input}
                 onChange={(e) => setR3Input(e.target.value)}
-                placeholder="Nhập đáp án Tăng Tốc càng nhanh càng được điểm cao (40 - 30 - 20 - 10đ)..."
+                placeholder="Nhập đáp án Tăng Tốc và nhấn Enter khi đã sẵn sàng..."
                 className="flex-1 px-4 py-3.5 bg-slate-950 border-2 border-amber-400 rounded-xl text-white text-sm font-semibold focus:outline-none"
                 autoFocus
               />
@@ -1334,7 +1228,14 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                 className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-extrabold text-sm cursor-pointer shrink-0"
               >
                 <Send className="w-4 h-4" />
-                Gửi Đáp Án ({r3ElapsedSec.toFixed(2)}s)
+                Nộp Đáp Án
+              </button>
+              <button
+                type="button"
+                onClick={() => submitR3Answer('')}
+                className="px-4 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer shrink-0"
+              >
+                Bỏ qua
               </button>
             </form>
           ) : (
@@ -1355,8 +1256,8 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                     )}
                     <span>
                       {r3Feedback.correct
-                        ? `CHÍNH XÁC Ở ${r3Feedback.timeSec.toFixed(2)} GIÂY! (+${r3Feedback.pointsDelta} điểm)`
-                        : `CHƯA CHÍNH XÁC (${r3Feedback.timeSec.toFixed(2)}s)`}
+                        ? `CHÍNH XÁC! (+${r3Feedback.pointsDelta} điểm)`
+                        : 'CHƯA CHÍNH XÁC (0 điểm)'}
                     </span>
                   </div>
                   <div className="text-xs text-slate-300">
@@ -1368,10 +1269,10 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                   {!r3Feedback.correct && (
                     <button
                       type="button"
-                      onClick={() => handleManualSynonymOverride('R3', 30)}
+                      onClick={() => handleManualSynonymOverride('R3', 40)}
                       className="px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-xs font-bold text-emerald-300 cursor-pointer"
                     >
-                      ✓ Đáp án của tôi đồng nghĩa (+30đ)
+                      ✓ Đáp án của tôi đồng nghĩa (+40đ)
                     </button>
                   )}
                   <button
@@ -1459,7 +1360,7 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                       })}
                     </div>
                     <div className="text-[11px] text-slate-400">
-                      Thời gian suy nghĩ: {r4Package[slotIdx] === 20 ? '15 giây' : '20 giây'}
+                      Không giới hạn thời gian suy nghĩ
                     </div>
                   </div>
                 ))}
@@ -1489,7 +1390,7 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                     </h2>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     {!r4StarUsed && !r4StarActive && !r4Feedback && (
                       <button
                         type="button"
@@ -1509,14 +1410,8 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                         ★ Đang bật Ngôi Sao Hy Vọng (+{currentR4Q.points * 2}đ / -{currentR4Q.points}đ)
                       </span>
                     )}
-                    <div
-                      className={`w-14 h-14 rounded-xl border flex items-center justify-center font-mono font-bold text-2xl tabular-nums ${
-                        r4TimeLeft <= 3
-                          ? 'bg-rose-500/20 border-rose-500 text-rose-300'
-                          : 'bg-slate-800 border-slate-700 text-amber-300'
-                      }`}
-                    >
-                      {r4Feedback ? 'XONG' : `${r4TimeLeft}s`}
+                    <div className="px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-xs font-bold text-sky-300">
+                      {r4Feedback ? '✓ Đã nộp đáp án' : '∞ Không giới hạn thời gian'}
                     </div>
                   </div>
                 </div>
@@ -1549,6 +1444,13 @@ export const SoloPracticeArena: React.FC<SoloPracticeArenaProps> = ({
                     >
                       <Send className="w-4 h-4" />
                       Nộp Đáp Án
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => submitR4Answer('')}
+                      className="px-4 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs cursor-pointer shrink-0"
+                    >
+                      Bỏ qua
                     </button>
                   </form>
                 ) : (

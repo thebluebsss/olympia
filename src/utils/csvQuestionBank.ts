@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import {
   OBSTACLE_PUZZLES,
   TANG_TOC_QUESTIONS,
+  extractAnswerVariants,
 } from '../data/olympiaQuestions.ts';
 import type { RoomQuestionDeck, QuestionDeckMode } from '../types/olympia.ts';
 import {
@@ -15,12 +16,19 @@ import {
   parseRawOlympiaAnswer,
   classifyVeDichPoints,
 } from './csv/csvParser.ts';
-import { buildRoomQuestionDeckFromRecords } from './csv/deckBuilder.ts';
+import {
+  buildRoomQuestionDeckFromRecords,
+  buildEditableVcnvPuzzlesFromBank,
+  countObstacleLetters,
+  syncQuestionTextWithExactCharCount,
+  type EditableVcnvPuzzleRecord,
+} from './csv/deckBuilder.ts';
 import { completeAllHistoricalVcnvMatches } from '../data/vcnvHistoricalSupplements.ts';
 
 export {
   type BankQuestionRecord,
   type UploadConversionReport,
+  type EditableVcnvPuzzleRecord,
   mapSubjectToVietnamese,
   parseCsvString,
   parseRawOlympiaAnswer,
@@ -45,6 +53,8 @@ const CUSTOM_QUESTIONS_CACHE_PATH = path.join(
 
 class CsvQuestionBankManager {
   private questionsMap = new Map<string, BankQuestionRecord>();
+  private customOrEditedMap = new Map<string, BankQuestionRecord>();
+  private deletedQids = new Set<string>();
   private uploadHistory: UploadConversionReport[] = [];
   private initialized = false;
 
@@ -59,10 +69,10 @@ class CsvQuestionBankManager {
 
   /**
    * Ensures all upgraded VCNV puzzles (indirect clues & images) and hint-free Tăng Tốc sets
-   * override any older `26-VCNV` or `26-TT` records in the backend bank and CSV export.
+   * override any older `26-VCNV` or `26-TT` records in the backend bank and CSV export,
+   * and synchronizes exact character counts for all VCNV rows and keywords.
    */
   private syncUpgradedVcnvAndTangTocIntoBank() {
-    // Remove legacy hint-laden 26-TT records, while keeping 26-VCNV17..60 intact
     for (const key of Array.from(this.questionsMap.keys())) {
       if (key.startsWith('26-TT')) {
         this.questionsMap.delete(key);
@@ -74,6 +84,7 @@ class CsvQuestionBankManager {
       const code = `VCNV${String(idx + 1).padStart(2, '0')}`;
       puz.rows.forEach((row) => {
         const qid = `26-${code}-VCNV-${row.id}`;
+        const exactRowChars = countObstacleLetters(row.displayWord);
         this.questionsMap.set(qid, {
           qid,
           season: '26',
@@ -82,7 +93,7 @@ class CsvQuestionBankManager {
           subCode: String(row.id),
           subjectRaw: 'General/Social',
           categoryVi: puz.title,
-          question: row.question,
+          question: syncQuestionTextWithExactCharCount(row.question, exactRowChars),
           officialAnswer: row.displayWord,
           acceptedAnswers: row.acceptedAnswers,
           explanation: row.explanation,
@@ -91,6 +102,7 @@ class CsvQuestionBankManager {
       });
 
       const ottQid = `26-${code}-VCNV-5`;
+      const exactCenterChars = countObstacleLetters(puz.centerQuestion.displayWord);
       this.questionsMap.set(ottQid, {
         qid: ottQid,
         season: '26',
@@ -99,7 +111,10 @@ class CsvQuestionBankManager {
         subCode: '5',
         subjectRaw: 'General/Social',
         categoryVi: puz.title,
-        question: puz.centerQuestion.question,
+        question: syncQuestionTextWithExactCharCount(
+          puz.centerQuestion.question,
+          exactCenterChars
+        ),
         officialAnswer: puz.centerQuestion.displayWord,
         acceptedAnswers: puz.centerQuestion.acceptedAnswers,
         explanation: puz.centerQuestion.explanation,
@@ -107,6 +122,7 @@ class CsvQuestionBankManager {
       });
 
       const cnvQid = `26-${code}-VCNV-CNV`;
+      const exactCnvChars = countObstacleLetters(puz.keywordDisplay);
       this.questionsMap.set(cnvQid, {
         qid: cnvQid,
         season: '26',
@@ -115,7 +131,7 @@ class CsvQuestionBankManager {
         subCode: 'CNV',
         subjectRaw: 'General/Social',
         categoryVi: puz.title,
-        question: `[Chủ đề: ${puz.title} · Chướng ngại vật gồm ${puz.charCount} chữ cái] Từ 4 hàng ngang và Ô trung tâm, hãy tìm Từ khóa Chướng Ngại Vật!`,
+        question: `[Chủ đề: ${puz.title} · Chướng ngại vật gồm ${exactCnvChars} chữ cái] Từ 4 hàng ngang và Ô trung tâm, hãy tìm Từ khóa Chướng Ngại Vật!`,
         officialAnswer: puz.keywordDisplay,
         acceptedAnswers: puz.acceptedKeywords,
         explanation: puz.summaryExplanation,
@@ -151,6 +167,19 @@ class CsvQuestionBankManager {
 
     // Complete all historical Olympia VCNV matches (Seasons 19-26) with any missing rows 1..4, Center Question (Row 5), and CNV Keyword
     completeAllHistoricalVcnvMatches(this.questionsMap);
+
+    // Ensure every VCNV record in the bank has accurate (X chữ cái) labels matching its officialAnswer
+    for (const rec of this.questionsMap.values()) {
+      if (rec.round === 'VCNV') {
+        const exactChars = countObstacleLetters(rec.officialAnswer);
+        if (exactChars > 0) {
+          rec.question = syncQuestionTextWithExactCharCount(
+            rec.question,
+            exactChars
+          );
+        }
+      }
+    }
   }
 
   private loadDefaultCsv() {
@@ -191,12 +220,39 @@ class CsvQuestionBankManager {
         const raw = fs.readFileSync(CUSTOM_QUESTIONS_CACHE_PATH, 'utf8');
         const parsed = JSON.parse(raw) as {
           records?: BankQuestionRecord[];
+          editedRecords?: BankQuestionRecord[];
+          deletedQids?: string[];
           history?: UploadConversionReport[];
         };
         if (Array.isArray(parsed.records)) {
           for (const rec of parsed.records) {
-            if (rec && rec.qid && !rec.qid.startsWith('26-TT') && !rec.qid.startsWith('26-VCNV')) {
+            if (
+              rec &&
+              rec.qid &&
+              !rec.qid.startsWith('26-TT') &&
+              !rec.qid.startsWith('26-VCNV')
+            ) {
+              this.customOrEditedMap.set(rec.qid, rec);
               this.questionsMap.set(rec.qid, rec);
+            }
+          }
+        }
+        // User-edited records always take highest priority, including 26-VCNV and 26-TT edits
+        if (Array.isArray(parsed.editedRecords)) {
+          for (const rec of parsed.editedRecords) {
+            if (rec && rec.qid) {
+              this.customOrEditedMap.set(rec.qid, rec);
+              this.questionsMap.set(rec.qid, rec);
+            }
+          }
+        }
+        // Apply user-deleted QIDs
+        if (Array.isArray(parsed.deletedQids)) {
+          for (const delQid of parsed.deletedQids) {
+            if (typeof delQid === 'string' && delQid.trim()) {
+              this.deletedQids.add(delQid);
+              this.questionsMap.delete(delQid);
+              this.customOrEditedMap.delete(delQid);
             }
           }
         }
@@ -209,13 +265,16 @@ class CsvQuestionBankManager {
     }
   }
 
-  private saveCustomCacheToDisk(customRecords: BankQuestionRecord[]) {
+  private persistCustomAndEditedToDisk() {
     try {
+      const allCustom = Array.from(this.customOrEditedMap.values());
+      const allDeleted = Array.from(this.deletedQids);
       fs.writeFileSync(
         CUSTOM_QUESTIONS_CACHE_PATH,
         JSON.stringify(
           {
-            records: customRecords.slice(-15000),
+            editedRecords: allCustom.slice(-15000),
+            deletedQids: allDeleted.slice(-15000),
             history: this.uploadHistory.slice(0, 20),
           },
           null,
@@ -230,6 +289,8 @@ class CsvQuestionBankManager {
 
   public resetToDefault(): UploadConversionReport {
     this.questionsMap.clear();
+    this.customOrEditedMap.clear();
+    this.deletedQids.clear();
     this.uploadHistory = [];
     try {
       if (fs.existsSync(CUSTOM_QUESTIONS_CACHE_PATH)) {
@@ -257,6 +318,398 @@ class CsvQuestionBankManager {
     };
   }
 
+  /**
+   * Deletes an individual question record from the bank and persists the deletion to disk.
+   */
+  public deleteQuestionRecord(qid: string): {
+    deletedQid: string;
+    totalRemaining: number;
+  } {
+    this.init();
+    const trimmedQid = (qid || '').trim();
+    if (!trimmedQid || !this.questionsMap.has(trimmedQid)) {
+      throw new Error(`Không tìm thấy câu hỏi với mã QID "${trimmedQid}" để xoá.`);
+    }
+    this.questionsMap.delete(trimmedQid);
+    this.customOrEditedMap.delete(trimmedQid);
+    this.deletedQids.add(trimmedQid);
+    this.persistCustomAndEditedToDisk();
+    return {
+      deletedQid: trimmedQid,
+      totalRemaining: this.questionsMap.size,
+    };
+  }
+
+  /**
+   * Deletes an entire VCNV Obstacle Puzzle set (all rows + center + CNV keyword for season & match)
+   * and persists the deletion to disk.
+   */
+  public deleteVcnvPuzzle(
+    season: string,
+    match: string
+  ): {
+    deletedCount: number;
+    totalRemaining: number;
+  } {
+    this.init();
+    const s = (season || '').trim();
+    const m = (match || '').trim();
+    if (!s || !m) {
+      throw new Error('Thiếu thông tin Mùa hoặc Mã trận của bộ VCNV cần xoá.');
+    }
+    const matchingRecords = Array.from(this.questionsMap.values()).filter(
+      (r) => r.round === 'VCNV' && r.season === s && r.match === m
+    );
+    if (matchingRecords.length === 0) {
+      throw new Error(`Không tìm thấy bộ đề VCNV của Mùa ${s} · Trận ${m} để xoá.`);
+    }
+    for (const rec of matchingRecords) {
+      this.questionsMap.delete(rec.qid);
+      this.customOrEditedMap.delete(rec.qid);
+      this.deletedQids.add(rec.qid);
+    }
+    this.persistCustomAndEditedToDisk();
+    return {
+      deletedCount: matchingRecords.length,
+      totalRemaining: this.questionsMap.size,
+    };
+  }
+
+  /**
+   * Updates an individual question/answer record in the bank and persists the edit to disk.
+   */
+  public updateQuestionRecord(
+    qid: string,
+    updates: {
+      question?: string;
+      officialAnswer?: string;
+      acceptedAnswers?: string[] | string;
+      explanation?: string;
+      categoryVi?: string;
+      points?: 20 | 30;
+      imageUrl?: string;
+    }
+  ): BankQuestionRecord {
+    this.init();
+    const existing = this.questionsMap.get(qid);
+    if (!existing) {
+      throw new Error(`Không tìm thấy câu hỏi với mã QID "${qid}".`);
+    }
+
+    const nextOfficial =
+      updates.officialAnswer !== undefined
+        ? updates.officialAnswer.trim()
+        : existing.officialAnswer;
+    if (!nextOfficial) {
+      throw new Error('Đáp án chính thức không được để trống.');
+    }
+
+    let nextQuestion =
+      updates.question !== undefined
+        ? updates.question.trim()
+        : existing.question;
+    if (!nextQuestion) {
+      throw new Error('Nội dung câu hỏi không được để trống.');
+    }
+
+    if (existing.round === 'VCNV') {
+      const exactChars = countObstacleLetters(nextOfficial);
+      if (exactChars > 0) {
+        nextQuestion = syncQuestionTextWithExactCharCount(
+          nextQuestion,
+          exactChars
+        );
+      }
+    }
+
+    let customVariants: string[] = [];
+    if (Array.isArray(updates.acceptedAnswers)) {
+      customVariants = updates.acceptedAnswers
+        .map((s) => String(s).trim())
+        .filter(Boolean);
+    } else if (typeof updates.acceptedAnswers === 'string') {
+      customVariants = updates.acceptedAnswers
+        .split(/[|,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else {
+      customVariants = existing.acceptedAnswers;
+    }
+
+    const autoVariants = extractAnswerVariants(nextOfficial);
+    const mergedAccepted = Array.from(
+      new Set([nextOfficial, ...autoVariants, ...customVariants])
+    ).filter(Boolean);
+
+    const updatedRecord: BankQuestionRecord = {
+      ...existing,
+      question: nextQuestion,
+      officialAnswer: nextOfficial,
+      acceptedAnswers: mergedAccepted,
+      explanation:
+        updates.explanation !== undefined
+          ? updates.explanation.trim()
+          : existing.explanation,
+      categoryVi:
+        updates.categoryVi !== undefined && updates.categoryVi.trim()
+          ? updates.categoryVi.trim()
+          : existing.categoryVi,
+      points:
+        existing.round === 'VD' && (updates.points === 20 || updates.points === 30)
+          ? updates.points
+          : existing.points,
+      imageUrl:
+        updates.imageUrl !== undefined
+          ? updates.imageUrl.trim() || undefined
+          : existing.imageUrl,
+      sourceFile: existing.sourceFile.includes('(Đã chỉnh sửa)')
+        ? existing.sourceFile
+        : `${existing.sourceFile} (Đã chỉnh sửa)`,
+    };
+
+    this.deletedQids.delete(qid);
+    this.questionsMap.set(qid, updatedRecord);
+    this.customOrEditedMap.set(qid, updatedRecord);
+    this.persistCustomAndEditedToDisk();
+    return updatedRecord;
+  }
+
+  /**
+   * Lists and searches all complete VCNV Obstacle Puzzles with their resolved mystery image,
+   * obstacle answer, exact character count, 4 horizontal rows, and center question.
+   */
+  public searchVcnvPuzzles(params?: {
+    q?: string;
+    season?: string;
+    page?: number;
+    limit?: number;
+  }): {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    items: EditableVcnvPuzzleRecord[];
+  } {
+    this.init();
+    const vcnvRecords = Array.from(this.questionsMap.values()).filter(
+      (r) => r.round === 'VCNV'
+    );
+    const allPuzzles = buildEditableVcnvPuzzlesFromBank(vcnvRecords);
+
+    const keyword = (params?.q || '').trim().toLowerCase();
+    const seasonFilter = (params?.season || '').trim();
+    const page = Math.max(1, Number(params?.page) || 1);
+    const limit = Math.min(200, Math.max(1, Number(params?.limit) || 12));
+
+    const matched = allPuzzles.filter((p) => {
+      if (seasonFilter && p.season !== seasonFilter) return false;
+      if (keyword) {
+        const hay = [
+          p.puzzleId,
+          p.season,
+          p.match,
+          p.title,
+          p.keywordDisplay,
+          ...p.acceptedKeywords,
+          p.summaryExplanation,
+          ...p.rows.map((r) => `${r.displayWord} ${r.question}`),
+          p.centerQuestion.displayWord,
+          p.centerQuestion.question,
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(keyword)) return false;
+      }
+      return true;
+    });
+
+    const total = matched.length;
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const offset = (page - 1) * limit;
+    const items = matched.slice(offset, offset + limit);
+
+    return {
+      total,
+      page,
+      limit,
+      totalPages,
+      items,
+    };
+  }
+
+  /**
+   * Updates a VCNV Obstacle Puzzle (Obstacle Answer, Mystery Image URL/DataURL, Title, Explanation,
+   * and optionally the 4 horizontal rows & Center Question) and persists all changes.
+   */
+  public updateVcnvPuzzle(payload: {
+    season: string;
+    match: string;
+    title?: string;
+    keywordDisplay?: string;
+    acceptedKeywords?: string[] | string;
+    imageUrl?: string;
+    summaryExplanation?: string;
+    rows?: {
+      id: 1 | 2 | 3 | 4;
+      question?: string;
+      displayWord?: string;
+      acceptedAnswers?: string[] | string;
+      explanation?: string;
+    }[];
+    centerQuestion?: {
+      question?: string;
+      displayWord?: string;
+      acceptedAnswers?: string[] | string;
+      explanation?: string;
+    };
+  }): EditableVcnvPuzzleRecord {
+    this.init();
+    const season = (payload.season || '26').trim();
+    const match = (payload.match || '').trim();
+    if (!match) {
+      throw new Error('Thiếu mã trận / bộ đề VCNV cần cập nhật.');
+    }
+
+    const group = Array.from(this.questionsMap.values()).filter(
+      (r) => r.round === 'VCNV' && r.season === season && r.match === match
+    );
+    if (group.length === 0) {
+      throw new Error(
+        `Không tìm thấy bộ đề VCNV của Mùa ${season} · Trận ${match}.`
+      );
+    }
+
+    const cnvRec =
+      group.find(
+        (r) =>
+          r.subCode.toUpperCase() === 'CNV' ||
+          r.subCode.toUpperCase() === 'KEYWORD'
+      ) || this.questionsMap.get(`${season}-${match}-VCNV-CNV`);
+
+    if (!cnvRec) {
+      throw new Error('Không tìm thấy bản ghi từ khóa Chướng Ngại Vật (CNV).');
+    }
+
+    const nextKeyword = (
+      payload.keywordDisplay !== undefined
+        ? payload.keywordDisplay
+        : cnvRec.officialAnswer
+    )
+      .trim()
+      .toUpperCase();
+    if (!nextKeyword) {
+      throw new Error('Đáp án Chướng Ngại Vật không được để trống.');
+    }
+
+    const nextCharCount = countObstacleLetters(nextKeyword);
+    const nextTitle = (
+      payload.title !== undefined ? payload.title : cnvRec.categoryVi
+    ).trim();
+
+    let nextAcceptedKeywords: string[] = [];
+    if (Array.isArray(payload.acceptedKeywords)) {
+      nextAcceptedKeywords = payload.acceptedKeywords
+        .map((s) => String(s).trim())
+        .filter(Boolean);
+    } else if (typeof payload.acceptedKeywords === 'string') {
+      nextAcceptedKeywords = payload.acceptedKeywords
+        .split(/[|,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else {
+      nextAcceptedKeywords = cnvRec.acceptedAnswers;
+    }
+
+    const mergedCnvAccepted = Array.from(
+      new Set([
+        nextKeyword,
+        ...extractAnswerVariants(nextKeyword),
+        ...nextAcceptedKeywords,
+      ])
+    ).filter(Boolean);
+
+    const nextImageUrl =
+      payload.imageUrl !== undefined
+        ? payload.imageUrl.trim() || undefined
+        : cnvRec.imageUrl;
+
+    const nextExplanation =
+      payload.summaryExplanation !== undefined
+        ? payload.summaryExplanation.trim()
+        : cnvRec.explanation;
+
+    const updatedCnvRec: BankQuestionRecord = {
+      ...cnvRec,
+      categoryVi: nextTitle || cnvRec.categoryVi,
+      officialAnswer: nextKeyword,
+      acceptedAnswers: mergedCnvAccepted,
+      imageUrl: nextImageUrl,
+      explanation: nextExplanation,
+      question: `[Chủ đề: ${
+        nextTitle || cnvRec.categoryVi
+      } · Chướng ngại vật gồm ${nextCharCount} chữ cái] Từ 4 hàng ngang và Ô trung tâm, hãy tìm Từ khóa Chướng Ngại Vật!`,
+      sourceFile: cnvRec.sourceFile.includes('(Đã chỉnh sửa)')
+        ? cnvRec.sourceFile
+        : `${cnvRec.sourceFile} (Đã chỉnh sửa)`,
+    };
+
+    this.questionsMap.set(updatedCnvRec.qid, updatedCnvRec);
+    this.customOrEditedMap.set(updatedCnvRec.qid, updatedCnvRec);
+
+    // Update any of the 4 horizontal rows if provided
+    if (Array.isArray(payload.rows)) {
+      for (const rowUpdate of payload.rows) {
+        const rowRec =
+          group.find((r) => r.subCode === String(rowUpdate.id)) ||
+          this.questionsMap.get(`${season}-${match}-VCNV-${rowUpdate.id}`);
+        if (rowRec) {
+          this.updateQuestionRecord(rowRec.qid, {
+            question: rowUpdate.question,
+            officialAnswer: rowUpdate.displayWord
+              ? rowUpdate.displayWord.trim().toUpperCase()
+              : undefined,
+            acceptedAnswers: rowUpdate.acceptedAnswers,
+            explanation: rowUpdate.explanation,
+            categoryVi: nextTitle || rowRec.categoryVi,
+          });
+        }
+      }
+    }
+
+    // Update Center Question (Row 5) if provided
+    if (payload.centerQuestion) {
+      const centerRec =
+        group.find(
+          (r) =>
+            r.subCode === '5' ||
+            r.subCode.toUpperCase() === 'OTT' ||
+            r.subCode.toUpperCase() === 'CENTER'
+        ) || this.questionsMap.get(`${season}-${match}-VCNV-5`);
+      if (centerRec) {
+        this.updateQuestionRecord(centerRec.qid, {
+          question: payload.centerQuestion.question,
+          officialAnswer: payload.centerQuestion.displayWord
+            ? payload.centerQuestion.displayWord.trim().toUpperCase()
+            : undefined,
+          acceptedAnswers: payload.centerQuestion.acceptedAnswers,
+          explanation: payload.centerQuestion.explanation,
+          categoryVi: nextTitle || centerRec.categoryVi,
+        });
+      }
+    }
+
+    this.persistCustomAndEditedToDisk();
+
+    const refreshedGroup = Array.from(this.questionsMap.values()).filter(
+      (r) => r.round === 'VCNV' && r.season === season && r.match === match
+    );
+    const built = buildEditableVcnvPuzzlesFromBank(refreshedGroup);
+    if (built.length === 0) {
+      throw new Error('Không thể tạo lại dữ liệu VCNV sau khi cập nhật.');
+    }
+    return built[0];
+  }
+
   public ingestCsvContent(
     csvText: string,
     fileName = 'uploaded.csv',
@@ -270,6 +723,7 @@ class CsvQuestionBankManager {
 
     if (mode === 'replace') {
       this.questionsMap.clear();
+      this.customOrEditedMap.clear();
     }
 
     const headerRow = rows[0].map((h) => h.trim().toLowerCase());
@@ -406,6 +860,16 @@ class CsvQuestionBankManager {
         continue;
       }
 
+      if (normalizedRound === 'VCNV') {
+        const exactChars = countObstacleLetters(parsedAns.officialAnswer);
+        if (exactChars > 0) {
+          rawQuestion = syncQuestionTextWithExactCharCount(
+            rawQuestion,
+            exactChars
+          );
+        }
+      }
+
       const qidParts = rawQid.split(`-${normalizedRound}-`);
       const subCode = qidParts.length > 1 ? qidParts[1] : `${i}`;
 
@@ -448,6 +912,7 @@ class CsvQuestionBankManager {
       }
       if (recordHistory) {
         newlyConverted.push(record);
+        this.customOrEditedMap.set(record.qid, record);
       }
     }
 
@@ -471,7 +936,7 @@ class CsvQuestionBankManager {
       if (this.uploadHistory.length > 20) {
         this.uploadHistory.length = 20;
       }
-      this.saveCustomCacheToDisk(newlyConverted);
+      this.persistCustomAndEditedToDisk();
     }
 
     return report;
